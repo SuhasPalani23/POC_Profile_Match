@@ -1,0 +1,1158 @@
+[
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5867"
+    },
+    "full_name": "Scott Martinez",
+    "email": "curtisespinoza@example.com",
+    "password": "Test@123",
+    "location": "Adamsburgh, Belgium",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "SQL",
+      "Presentation Skills",
+      "Data Analysis",
+      "Tableau",
+      "SWOT Analysis",
+      "Requirements Gathering",
+      "Documentation (BRD, FRD, SRS)",
+      "JIRA / Confluence",
+      "Stakeholder Management",
+      "User Stories & Acceptance Criteria",
+      "BPMN 2.0",
+      "UAT Coordination"
+    ],
+    "bio": "I am a dedicated Business Analyst with 7 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 7,
+    "resume": "",
+    "founding_mindset_score": 10,
+    "created_at": {
+      "$date": "2026-02-11T13:57:45.434Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5868"
+    },
+    "full_name": "Phillip Green",
+    "email": "walkermelissa@example.net",
+    "password": "Test@123",
+    "location": "Calhounborough, Liberia",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "SQL",
+      "Agile / Scrum",
+      "Gap Analysis",
+      "Tableau",
+      "Requirements Gathering",
+      "Cost-Benefit Analysis",
+      "JIRA / Confluence",
+      "Risk Management",
+      "User Stories & Acceptance Criteria",
+      "BPMN 2.0",
+      "SWOT Analysis",
+      "Excel / Google Sheets"
+    ],
+    "bio": "I am a dedicated Business Analyst with 6 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 6,
+    "resume": "",
+    "founding_mindset_score": 5,
+    "created_at": {
+      "$date": "2026-01-28T06:59:07.439Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5869"
+    },
+    "full_name": "Jonathan Ayers",
+    "email": "umurray@example.com",
+    "password": "Test@123",
+    "location": "Lake Melissamouth, Timor-Leste",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "Business Process Modeling (BPMN)",
+      "Agile / Scrum",
+      "Gap Analysis",
+      "Data Analysis",
+      "Communication Skills",
+      "Tableau",
+      "Documentation (BRD, FRD, SRS)",
+      "Risk Analysis",
+      "Stakeholder Management",
+      "User Stories & Acceptance Criteria",
+      "SWOT Analysis",
+      "Excel / Google Sheets"
+    ],
+    "bio": "I am a dedicated Business Analyst with 15 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 15,
+    "resume": "",
+    "founding_mindset_score": 4,
+    "created_at": {
+      "$date": "2026-02-01T10:14:27.171Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586a"
+    },
+    "full_name": "Elizabeth May",
+    "email": "bradley13@example.org",
+    "password": "Test@123",
+    "location": "Robertsonberg, Morocco",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "SQL",
+      "Gap Analysis",
+      "Communication Skills",
+      "SWOT Analysis",
+      "Requirements Gathering",
+      "Tableau",
+      "JIRA / Confluence",
+      "Risk Analysis",
+      "Stakeholder Management",
+      "BPMN 2.0",
+      "UAT Coordination",
+      "Excel / Google Sheets"
+    ],
+    "bio": "I am a dedicated Business Analyst with 3 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 3,
+    "resume": "",
+    "founding_mindset_score": 1,
+    "created_at": {
+      "$date": "2026-01-16T20:34:43.065Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586b"
+    },
+    "full_name": "Justin Underwood",
+    "email": "rgardner@example.net",
+    "password": "Test@123",
+    "location": "Michaelland, Congo",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "Business Process Modeling (BPMN)",
+      "SQL",
+      "Gap Analysis",
+      "Data Analysis",
+      "Tableau",
+      "SWOT Analysis",
+      "Cost-Benefit Analysis",
+      "User Stories & Acceptance Criteria",
+      "BPMN 2.0",
+      "Presentation Skills",
+      "Excel / Google Sheets",
+      "UAT Coordination"
+    ],
+    "bio": "I am a dedicated Business Analyst with 3 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 3,
+    "resume": "",
+    "founding_mindset_score": 5,
+    "created_at": {
+      "$date": "2026-01-05T18:19:53.111Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586c"
+    },
+    "full_name": "Madeline Greene",
+    "email": "adamhobbs@example.org",
+    "password": "Test@123",
+    "location": "North Lisaville, Latvia",
+    "user_role": "user",
+    "professional_title": "Business Analyst",
+    "skills": [
+      "Documentation (BRD, FRD, SRS)",
+      "Communication Skills",
+      "User Stories & Acceptance Criteria",
+      "JIRA / Confluence",
+      "Presentation Skills",
+      "SQL",
+      "Stakeholder Management",
+      "Data Analysis",
+      "Requirements Gathering",
+      "UAT Coordination",
+      "Agile / Scrum",
+      "Tableau",
+      "Process Mapping"
+    ],
+    "bio": "I am a dedicated Business Analyst with 8 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Business Analyst to a forward-thinking organization that values excellence.",
+    "experience_years": 8,
+    "resume": "",
+    "founding_mindset_score": 5,
+    "created_at": {
+      "$date": "2026-01-06T22:26:52.729Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586d"
+    },
+    "full_name": "Blake Butler",
+    "email": "watkinsmichael@example.net",
+    "password": "Test@123",
+    "location": "Jessicaborough, Benin",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "CI/CD Pipelines",
+      "Infrastructure as Code (Terraform, CloudFormation)",
+      "Monitoring (CloudWatch, Prometheus)",
+      "Linux Administration",
+      "Kubernetes",
+      "Docker",
+      "AWS Lambda",
+      "Azure DevOps",
+      "Google Cloud Platform",
+      "Shell Scripting",
+      "Microservices Architecture",
+      "Cloud Security"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 2 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 2,
+    "resume": "",
+    "founding_mindset_score": 9,
+    "created_at": {
+      "$date": "2026-01-11T01:37:01.140Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586e"
+    },
+    "full_name": "Kyle Garcia",
+    "email": "thomashernandez@example.com",
+    "password": "Test@123",
+    "location": "South Adrian, China",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "CI/CD Pipelines",
+      "Monitoring (CloudWatch, Prometheus)",
+      "Docker",
+      "Disaster Recovery",
+      "Networking (VPC, DNS, Load Balancing)",
+      "Kubernetes",
+      "Terraform",
+      "AWS Lambda",
+      "Azure DevOps",
+      "Google Cloud Platform",
+      "Shell Scripting",
+      "IAM"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 1 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 1,
+    "resume": "",
+    "founding_mindset_score": 3,
+    "created_at": {
+      "$date": "2026-01-22T03:06:50.777Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f586f"
+    },
+    "full_name": "Melissa Houston",
+    "email": "andreanavarro@example.net",
+    "password": "Test@123",
+    "location": "Lake Jessica, Senegal",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "Security Best Practices",
+      "AWS / Azure / GCP",
+      "Cloud Architecture Design",
+      "Infrastructure as Code (Terraform, CloudFormation)",
+      "Docker",
+      "Linux Administration",
+      "Kubernetes",
+      "AWS Lambda",
+      "Azure DevOps",
+      "Shell Scripting",
+      "Microservices Architecture",
+      "Serverless"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 6 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 6,
+    "resume": "",
+    "founding_mindset_score": 10,
+    "created_at": {
+      "$date": "2026-01-04T02:47:17.498Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5870"
+    },
+    "full_name": "Carolyn Drake",
+    "email": "justin45@example.org",
+    "password": "Test@123",
+    "location": "West Meganfurt, Uruguay",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "Docker",
+      "Infrastructure as Code (Terraform, CloudFormation)",
+      "Disaster Recovery",
+      "Scripting (Python, Bash)",
+      "IAM & Access Control",
+      "CI/CD Pipelines",
+      "Serverless Architecture",
+      "Networking (VPC, DNS, Load Balancing)",
+      "Cloud Architecture Design",
+      "Kubernetes",
+      "AWS Lambda",
+      "Azure DevOps"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 3 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 3,
+    "resume": "",
+    "founding_mindset_score": 4,
+    "created_at": {
+      "$date": "2026-01-25T00:40:55.252Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5871"
+    },
+    "full_name": "Wendy Lucas",
+    "email": "nwarren@example.com",
+    "password": "Test@123",
+    "location": "West Marcus, Russian Federation",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "Cloud Architecture Design",
+      "CI/CD Pipelines",
+      "Linux Administration",
+      "IAM & Access Control",
+      "Infrastructure as Code (Terraform, CloudFormation)",
+      "Scripting (Python, Bash)",
+      "Cost Optimization",
+      "Monitoring (CloudWatch, Prometheus)",
+      "AWS / Azure / GCP",
+      "Kubernetes",
+      "Docker",
+      "Microservices Architecture"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 6 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 6,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-02-06T16:15:49.727Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5872"
+    },
+    "full_name": "Kristen Bell",
+    "email": "brandi28@example.net",
+    "password": "Test@123",
+    "location": "Stacyview, Bangladesh",
+    "user_role": "user",
+    "professional_title": "Cloud Engineer",
+    "skills": [
+      "Disaster Recovery",
+      "Networking (VPC, DNS, Load Balancing)",
+      "Docker",
+      "Scripting (Python, Bash)",
+      "Cost Optimization",
+      "Serverless Architecture",
+      "Security Best Practices",
+      "CI/CD Pipelines",
+      "AWS / Azure / GCP",
+      "Kubernetes",
+      "Terraform",
+      "CloudWatch"
+    ],
+    "bio": "I am a dedicated Cloud Engineer with 12 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cloud Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 12,
+    "resume": "",
+    "founding_mindset_score": 1,
+    "created_at": {
+      "$date": "2026-01-08T03:23:06.829Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5873"
+    },
+    "full_name": "Paul Taylor",
+    "email": "charlesmyers@example.org",
+    "password": "Test@123",
+    "location": "Mistybury, Northern Mariana Islands",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Penetration Testing",
+      "Incident Response",
+      "Network Security",
+      "Compliance (ISO 27001, NIST)",
+      "Vulnerability Assessment",
+      "SIEM Tools (Splunk, QRadar)",
+      "Cryptography",
+      "Threat Modeling",
+      "OWASP Top 10",
+      "Security Auditing",
+      "Endpoint Security",
+      "Wireshark",
+      "Metasploit"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 11 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 11,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-02-04T19:35:32.705Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5874"
+    },
+    "full_name": "Zachary Harris",
+    "email": "sharon47@example.net",
+    "password": "Test@123",
+    "location": "Scottville, Uganda",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Security Auditing",
+      "Compliance (ISO 27001, NIST)",
+      "Incident Response",
+      "Vulnerability Assessment",
+      "Penetration Testing",
+      "SIEM Tools (Splunk, QRadar)",
+      "Threat Modeling",
+      "Wireshark",
+      "Metasploit",
+      "Kali Linux",
+      "Forensic Analysis",
+      "Malware Analysis"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 6 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 6,
+    "resume": "",
+    "founding_mindset_score": 7,
+    "created_at": {
+      "$date": "2026-01-14T21:10:04.639Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5875"
+    },
+    "full_name": "Sara Ellis",
+    "email": "webbjames@example.net",
+    "password": "Test@123",
+    "location": "Crystalmouth, Saint Kitts and Nevis",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Risk Management",
+      "Ethical Hacking",
+      "SIEM Tools (Splunk, QRadar)",
+      "Incident Response",
+      "Cryptography",
+      "Network Security",
+      "Endpoint Security",
+      "OWASP Top 10",
+      "Vulnerability Assessment",
+      "Threat Modeling",
+      "Wireshark",
+      "Metasploit",
+      "Cloud Security"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 12 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 12,
+    "resume": "",
+    "founding_mindset_score": 2,
+    "created_at": {
+      "$date": "2026-02-10T21:25:06.187Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5876"
+    },
+    "full_name": "Samuel Allen",
+    "email": "cory89@example.com",
+    "password": "Test@123",
+    "location": "Ericaland, Myanmar",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Firewall & IDS/IPS",
+      "Vulnerability Assessment",
+      "Penetration Testing",
+      "Wireshark",
+      "Network Security",
+      "Endpoint Security",
+      "Cryptography",
+      "Identity & Access Management",
+      "OWASP Top 10",
+      "Risk Management",
+      "SIEM Tools (Splunk, QRadar)",
+      "Security Auditing"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 14 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 14,
+    "resume": "",
+    "founding_mindset_score": 3,
+    "created_at": {
+      "$date": "2026-02-02T07:41:29.777Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5877"
+    },
+    "full_name": "Noah Lee",
+    "email": "fosterchristopher@example.com",
+    "password": "Test@123",
+    "location": "Hansonhaven, Argentina",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Firewall & IDS/IPS",
+      "Vulnerability Assessment",
+      "Penetration Testing",
+      "Metasploit",
+      "Wireshark",
+      "Endpoint Security",
+      "Cryptography",
+      "OWASP Top 10",
+      "Risk Management",
+      "SIEM Tools (Splunk, QRadar)",
+      "Incident Response",
+      "Security Auditing"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 13 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 13,
+    "resume": "",
+    "founding_mindset_score": 2,
+    "created_at": {
+      "$date": "2026-01-14T17:31:41.225Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5878"
+    },
+    "full_name": "Alison Daniels",
+    "email": "dunnjames@example.net",
+    "password": "Test@123",
+    "location": "New Pamelamouth, Tuvalu",
+    "user_role": "user",
+    "professional_title": "Cyber Security Engineer",
+    "skills": [
+      "Ethical Hacking",
+      "Vulnerability Assessment",
+      "Firewall & IDS/IPS",
+      "Threat Modeling",
+      "Metasploit",
+      "GRC Frameworks",
+      "Wireshark",
+      "Network Security",
+      "Cryptography",
+      "Cloud Security",
+      "Risk Management",
+      "Incident Response"
+    ],
+    "bio": "I am a dedicated Cyber Security Engineer with 7 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Cyber Security Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 7,
+    "resume": "",
+    "founding_mindset_score": 10,
+    "created_at": {
+      "$date": "2026-02-15T16:54:29.034Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5879"
+    },
+    "full_name": "Nicole Adams",
+    "email": "ukim@example.org",
+    "password": "Test@123",
+    "location": "Neilfurt, India",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "SQL",
+      "Hadoop Ecosystem",
+      "ETL / ELT Development",
+      "Python / Java / Scala",
+      "Kafka",
+      "Data Warehousing",
+      "Apache Spark",
+      "Data Modeling",
+      "DBT",
+      "NoSQL Databases",
+      "Data Pipeline Optimization",
+      "Airflow"
+    ],
+    "bio": "I am a dedicated Data Engineer with 12 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 12,
+    "resume": "",
+    "founding_mindset_score": 3,
+    "created_at": {
+      "$date": "2026-01-20T04:00:26.663Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587a"
+    },
+    "full_name": "John Freeman",
+    "email": "washingtonjohn@example.com",
+    "password": "Test@123",
+    "location": "Hudsonborough, El Salvador",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "SQL",
+      "Data Governance",
+      "Hadoop Ecosystem",
+      "ETL / ELT Development",
+      "Data Warehousing",
+      "Apache Spark",
+      "Data Modeling",
+      "Snowflake / Redshift / BigQuery",
+      "Cloud Data Platforms",
+      "DBT",
+      "Data Pipeline Optimization",
+      "Airflow"
+    ],
+    "bio": "I am a dedicated Data Engineer with 13 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 13,
+    "resume": "",
+    "founding_mindset_score": 7,
+    "created_at": {
+      "$date": "2026-01-28T01:50:25.693Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587b"
+    },
+    "full_name": "Donald Fowler",
+    "email": "taylor46@example.org",
+    "password": "Test@123",
+    "location": "Rachaelmouth, Namibia",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "Data Lakes",
+      "Data Governance",
+      "ETL / ELT Development",
+      "Snowflake",
+      "Kafka",
+      "Apache Spark",
+      "Data Warehousing",
+      "Data Modeling",
+      "DBT",
+      "NoSQL Databases",
+      "PySpark",
+      "Airflow"
+    ],
+    "bio": "I am a dedicated Data Engineer with 7 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 7,
+    "resume": "",
+    "founding_mindset_score": 2,
+    "created_at": {
+      "$date": "2026-01-28T13:43:22.654Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587c"
+    },
+    "full_name": "Calvin Macdonald",
+    "email": "nicole90@example.com",
+    "password": "Test@123",
+    "location": "Port Danieltown, Vietnam",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "SQL",
+      "Hadoop Ecosystem",
+      "Snowflake",
+      "Python / Java / Scala",
+      "Kafka",
+      "Apache Spark",
+      "DBT",
+      "Data Modeling",
+      "Snowflake / Redshift / BigQuery",
+      "Cloud Data Platforms",
+      "PySpark",
+      "Airflow"
+    ],
+    "bio": "I am a dedicated Data Engineer with 9 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 9,
+    "resume": "",
+    "founding_mindset_score": 1,
+    "created_at": {
+      "$date": "2026-02-01T21:12:43.960Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587d"
+    },
+    "full_name": "Eileen Bailey",
+    "email": "kyleruiz@example.org",
+    "password": "Test@123",
+    "location": "Lake Scott, Netherlands Antilles",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "ETL Design",
+      "Data Lakes",
+      "Kubernetes",
+      "Performance Tuning",
+      "Data Quality",
+      "Snowflake",
+      "Apache Spark",
+      "DBT",
+      "Data Warehousing",
+      "PySpark",
+      "Data Pipeline Optimization",
+      "Python"
+    ],
+    "bio": "I am a dedicated Data Engineer with 2 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 2,
+    "resume": "",
+    "founding_mindset_score": 7,
+    "created_at": {
+      "$date": "2026-01-21T01:24:16.824Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587e"
+    },
+    "full_name": "Teresa Mitchell",
+    "email": "tinaproctor@example.com",
+    "password": "Test@123",
+    "location": "Danieltown, Portugal",
+    "user_role": "user",
+    "professional_title": "Data Engineer",
+    "skills": [
+      "SQL",
+      "Hadoop Ecosystem",
+      "ETL / ELT Development",
+      "Data Pipeline Optimization",
+      "Python / Java / Scala",
+      "Kafka",
+      "Data Warehousing",
+      "Apache Spark",
+      "Snowflake / Redshift / BigQuery",
+      "Cloud Data Platforms",
+      "CI/CD for Data Pipelines",
+      "Airflow"
+    ],
+    "bio": "I am a dedicated Data Engineer with 10 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Engineer to a forward-thinking organization that values excellence.",
+    "experience_years": 10,
+    "resume": "",
+    "founding_mindset_score": 4,
+    "created_at": {
+      "$date": "2026-02-15T02:42:47.969Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f587f"
+    },
+    "full_name": "Benjamin Adams",
+    "email": "james48@example.net",
+    "password": "Test@123",
+    "location": "North Kimberly, British Virgin Islands",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "Kubernetes",
+      "REST APIs",
+      "Unit Testing (JUnit, PyTest)",
+      "ORM (Hibernate, Sequelize)",
+      "Spring Boot",
+      "Docker",
+      "CI/CD",
+      "GraphQL",
+      "Microservices",
+      "System Design",
+      "Java / Python / C++ / JavaScript",
+      "MongoDB"
+    ],
+    "bio": "I am a dedicated SDE with 2 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 2,
+    "resume": "",
+    "founding_mindset_score": 6,
+    "created_at": {
+      "$date": "2026-01-06T22:17:41.426Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5880"
+    },
+    "full_name": "Reginald Davis",
+    "email": "michaelarmstrong@example.org",
+    "password": "Test@123",
+    "location": "Jenniferhaven, Marshall Islands",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "Debugging",
+      "Design Patterns",
+      "Express.js",
+      "Unit Testing (JUnit, PyTest)",
+      "ORM (Hibernate, Sequelize)",
+      "Spring Boot",
+      "Docker",
+      "CI/CD",
+      "Data Structures & Algorithms",
+      "Microservices",
+      "Unit Testing (JUnit, PyTest, Jest)",
+      "Flask"
+    ],
+    "bio": "I am a dedicated SDE with 5 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 5,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-02-11T11:17:47.129Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5881"
+    },
+    "full_name": "Tanya Smith",
+    "email": "marcuscarter@example.net",
+    "password": "Test@123",
+    "location": "South Neiltown, Saint Lucia",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "Redis",
+      "SQL",
+      "Git",
+      "Django",
+      "Object-Oriented Programming",
+      "React",
+      "Code Review",
+      "Spring Boot",
+      "Microservices",
+      "GraphQL",
+      "Angular",
+      "Flask"
+    ],
+    "bio": "I am a dedicated SDE with 8 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 8,
+    "resume": "",
+    "founding_mindset_score": 5,
+    "created_at": {
+      "$date": "2026-02-10T07:06:34.668Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5882"
+    },
+    "full_name": "Michael Garcia",
+    "email": "ihernandez@example.org",
+    "password": "Test@123",
+    "location": "Nguyenport, Nauru",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "Redis",
+      "REST APIs",
+      "Django",
+      "Object-Oriented Programming",
+      "ORM (Hibernate, Sequelize)",
+      "Code Review",
+      "Low-Level Design",
+      "Spring Boot",
+      "CI/CD",
+      "Data Structures & Algorithms",
+      "Microservices",
+      "Flask"
+    ],
+    "bio": "I am a dedicated SDE with 14 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 14,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-01-02T20:31:27.332Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5883"
+    },
+    "full_name": "Ronald Stewart",
+    "email": "vincent11@example.net",
+    "password": "Test@123",
+    "location": "Christinamouth, Poland",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "SQL",
+      "Git",
+      "Database Design",
+      "REST APIs",
+      "Design Patterns",
+      "Spring Boot",
+      "Docker",
+      "CI/CD",
+      "Data Structures & Algorithms",
+      "Node.js",
+      "Flask",
+      "MongoDB"
+    ],
+    "bio": "I am a dedicated SDE with 9 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 9,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-01-11T17:40:58.621Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5884"
+    },
+    "full_name": "Donna Boyer",
+    "email": "terrilewis@example.com",
+    "password": "Test@123",
+    "location": "Lake Melissaberg, Poland",
+    "user_role": "user",
+    "professional_title": "SDE",
+    "skills": [
+      "SQL",
+      "PostgreSQL",
+      "REST APIs",
+      "Database Design",
+      "Object-Oriented Programming",
+      "React",
+      "Agile Development",
+      "Docker",
+      "System Design",
+      "Angular",
+      "Flask",
+      "MongoDB"
+    ],
+    "bio": "I am a dedicated SDE with 14 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in SDE to a forward-thinking organization that values excellence.",
+    "experience_years": 14,
+    "resume": "",
+    "founding_mindset_score": 7,
+    "created_at": {
+      "$date": "2026-02-14T22:12:06.894Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5885"
+    },
+    "full_name": "Karen Wilson",
+    "email": "michaelodom@example.org",
+    "password": "Test@123",
+    "location": "Angelaside, Equatorial Guinea",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "Statistics",
+      "Python / R",
+      "Data Visualization",
+      "Business Understanding",
+      "Big Data Tools",
+      "Data Cleaning",
+      "Scikit-learn",
+      "NLP (Natural Language Processing)",
+      "Deep Learning",
+      "A/B Testing",
+      "PyTorch / TensorFlow",
+      "ML Ops"
+    ],
+    "bio": "I am a dedicated Data Scientist with 6 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 6,
+    "resume": "",
+    "founding_mindset_score": 6,
+    "created_at": {
+      "$date": "2026-02-14T23:38:07.492Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5886"
+    },
+    "full_name": "Nicole Terrell",
+    "email": "timothypotts@example.net",
+    "password": "Test@123",
+    "location": "East Toddfort, Martinique",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "Data Visualization",
+      "SQL",
+      "Model Evaluation",
+      "Data Cleaning",
+      "Big Data Tools",
+      "TensorFlow / PyTorch",
+      "Statistics",
+      "Python / R",
+      "Machine Learning",
+      "Business Understanding",
+      "Pandas / NumPy",
+      "Deep Learning",
+      "NLP (Natural Language Processing)"
+    ],
+    "bio": "I am a dedicated Data Scientist with 12 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 12,
+    "resume": "",
+    "founding_mindset_score": 7,
+    "created_at": {
+      "$date": "2026-01-11T07:36:50.752Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5887"
+    },
+    "full_name": "Ruth Porter",
+    "email": "grantjames@example.com",
+    "password": "Test@123",
+    "location": "Stacystad, Faroe Islands",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "SQL",
+      "TensorFlow / PyTorch",
+      "Statistics",
+      "Deep Learning",
+      "Data Visualization",
+      "Pandas / NumPy",
+      "Data Cleaning",
+      "A/B Testing",
+      "Scikit-learn",
+      "NLP (Natural Language Processing)",
+      "R Programming",
+      "ML Ops"
+    ],
+    "bio": "I am a dedicated Data Scientist with 4 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 4,
+    "resume": "",
+    "founding_mindset_score": 8,
+    "created_at": {
+      "$date": "2026-02-10T13:29:53.424Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5888"
+    },
+    "full_name": "Charles Bender",
+    "email": "lindsayperry@example.com",
+    "password": "Test@123",
+    "location": "East Raymondshire, Namibia",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "A/B Testing",
+      "Scikit-learn",
+      "Data Visualization",
+      "Deep Learning",
+      "Feature Engineering",
+      "SQL",
+      "Data Cleaning",
+      "Model Evaluation",
+      "Big Data Tools",
+      "Statistics",
+      "NLP (Natural Language Processing)",
+      "PyTorch / TensorFlow"
+    ],
+    "bio": "I am a dedicated Data Scientist with 15 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 15,
+    "resume": "",
+    "founding_mindset_score": 2,
+    "created_at": {
+      "$date": "2026-02-07T21:00:12.311Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f5889"
+    },
+    "full_name": "Matthew Tucker",
+    "email": "frankbryan@example.com",
+    "password": "Test@123",
+    "location": "Martinview, United Kingdom",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "Machine Learning",
+      "Pandas / NumPy",
+      "A/B Testing",
+      "Big Data Tools",
+      "Feature Engineering",
+      "SQL",
+      "Scikit-learn",
+      "NLP (Natural Language Processing)",
+      "Deep Learning",
+      "PyTorch / TensorFlow",
+      "R Programming",
+      "Advanced Statistics"
+    ],
+    "bio": "I am a dedicated Data Scientist with 7 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 7,
+    "resume": "",
+    "founding_mindset_score": 5,
+    "created_at": {
+      "$date": "2026-02-02T20:01:47.076Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "69931853463649cc435f588a"
+    },
+    "full_name": "Lisa Taylor DVM",
+    "email": "grace82@example.com",
+    "password": "Test@123",
+    "location": "Lake Alyssastad, Myanmar",
+    "user_role": "user",
+    "professional_title": "Data Scientist",
+    "skills": [
+      "Statistics",
+      "Python / R",
+      "Deep Learning",
+      "SQL",
+      "Scikit-learn",
+      "Pandas / NumPy",
+      "Business Understanding",
+      "Big Data Tools",
+      "Model Evaluation",
+      "NLP (Natural Language Processing)",
+      "A/B Testing",
+      "PyTorch / TensorFlow"
+    ],
+    "bio": "I am a dedicated Data Scientist with 7 years of professional experience in the tech industry.\nThroughout my career, I have focused on delivering high-impact solutions that drive business value.\nI pride myself on my ability to solve complex problems through innovative thinking and technical expertise.\nCollaboration is at the heart of my work, as I believe the best results come from strong team dynamics.\nI am constantly learning and adapting to the latest industry trends to stay at the cutting edge of my field.\nMy approach combines technical proficiency with a deep understanding of user needs and project goals.\nI have a proven track record of meeting tight deadlines while maintaining the highest standards of quality.\nI am passionate about mentoring others and sharing knowledge within the professional community.\nIn every project, I strive to implement sustainable and scalable practices for long-term success.\nI am eager to bring my skills in Data Scientist to a forward-thinking organization that values excellence.",
+    "experience_years": 7,
+    "resume": "",
+    "founding_mindset_score": 3,
+    "created_at": {
+      "$date": "2026-02-01T05:32:05.932Z"
+    }
+  }
+]
