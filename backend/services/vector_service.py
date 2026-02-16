@@ -29,7 +29,10 @@ class VectorService:
             # Combine bio and skills for richer embedding
             skills_text = ", ".join(user.get('skills', []))
             bio = user.get('bio', '')
-            combined_text = f"{bio} Skills: {skills_text}"
+            professional_title = user.get('professional_title', '')
+            location = user.get('location', '')
+            
+            combined_text = f"{bio} Skills: {skills_text} Role: {professional_title} Location: {location}"
             texts.append(combined_text)
             self.user_ids.append(user['_id'])
         
@@ -88,3 +91,43 @@ class VectorService:
                 })
         
         return results
+    
+    def update_user_vectors(self, users):
+        """Update vectors for specific users by rebuilding index"""
+        # This is a simple implementation - rebuild entire index
+        # For production, consider incremental updates
+        from models.user import User
+        
+        all_users = User.get_all_users()
+        self.build_index(all_users)
+    
+    def add_user_to_index(self, user):
+        """Add a single user to the existing index"""
+        if self.index is None:
+            self.load_index()
+        
+        # Create embedding for new user
+        skills_text = ", ".join(user.get('skills', []))
+        bio = user.get('bio', '')
+        professional_title = user.get('professional_title', '')
+        location = user.get('location', '')
+        
+        combined_text = f"{bio} Skills: {skills_text} Role: {professional_title} Location: {location}"
+        
+        embedding = self.create_embedding(combined_text)
+        embedding = np.array([embedding]).astype('float32')
+        
+        # Add to index
+        self.index.add(embedding)
+        self.user_ids.append(user['_id'])
+        
+        # Save updated index
+        self.save_index()
+    
+    def remove_user_from_index(self, user_id):
+        """Remove a user from the index - requires rebuild"""
+        if user_id in self.user_ids:
+            from models.user import User
+            all_users = User.get_all_users()
+            all_users = [u for u in all_users if u['_id'] != user_id]
+            self.build_index(all_users)

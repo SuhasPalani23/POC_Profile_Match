@@ -1,5 +1,7 @@
 Flask
 Flask-CORS
+flask-socketio
+python-socketio
 pymongo
 python-dotenv
 bcrypt
@@ -10,3 +12,7 @@ sentence-transformers
 numpy
 scikit-learn
 gunicorn
+PyPDF2
+python-docx
+Werkzeug
+eventlet

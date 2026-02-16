@@ -55,7 +55,7 @@ const UserDashboard = ({ user }) => {
           marginBottom: palette.spacing.lg,
           fontSize: palette.typography.fontSize['3xl'],
         }}>
-          💡
+          
         </div>
         <h2 style={{
           fontSize: palette.typography.fontSize['2xl'],
@@ -87,17 +87,17 @@ const UserDashboard = ({ user }) => {
       }}>
         {[
           {
-            icon: '🤖',
+            icon: '',
             title: 'AI-Powered Matching',
             description: 'Our advanced AI analyzes your project and matches you with the most suitable co-founders based on skills and mindset.'
           },
           {
-            icon: '⚡',
+            icon: '',
             title: 'Instant Results',
             description: 'Get your top 5 matches in seconds. See compatibility scores, strengths, and potential concerns for each candidate.'
           },
           {
-            icon: '🚀',
+            icon: '',
             title: 'Build Your Team',
             description: 'Send collaboration requests and start building your dream team. Connect with passionate individuals ready to create.'
           },

@@ -28,10 +28,18 @@ class Project:
     
     @staticmethod
     def find_by_id(project_id):
-        project = projects_collection.find_one({"_id": ObjectId(project_id)})
-        if project:
-            project['_id'] = str(project['_id'])
-        return project
+        """Find project by ID with validation"""
+        if not project_id or project_id == 'undefined' or project_id == 'null':
+            return None
+        
+        try:
+            project = projects_collection.find_one({"_id": ObjectId(project_id)})
+            if project:
+                project['_id'] = str(project['_id'])
+            return project
+        except Exception as e:
+            print(f"Error finding project by ID '{project_id}': {e}")
+            return None
     
     @staticmethod
     def find_by_founder(founder_id):

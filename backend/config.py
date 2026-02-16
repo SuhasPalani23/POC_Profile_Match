@@ -12,3 +12,5 @@ class Config:
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     FAISS_INDEX_PATH = 'data/faiss_index'
     JWT_EXPIRATION_HOURS = 24
+    MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10MB
+    RESUME_UPLOAD_FOLDER = 'data/resumes'

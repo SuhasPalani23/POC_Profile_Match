@@ -23,7 +23,12 @@ class User:
             "bio": bio,
             "role": role,
             "resume": "",
+            "resume_parsed": False,
             "linkedin": "",
+            "professional_title": "",
+            "experience_years": 0,
+            "location": "",
+            "founding_mindset_score": 0,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
@@ -57,6 +62,19 @@ class User:
         result = users_collection.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"role": new_role, "updated_at": datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+    
+    @staticmethod
+    def update_profile(user_id, update_data):
+        """Update user profile fields"""
+        from bson.objectid import ObjectId
+        
+        update_data['updated_at'] = datetime.utcnow()
+        
+        result = users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
         )
         return result.modified_count > 0
     

@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Common/Navbar';
+import NotificationCenter from './components/Common/NotificationCenter';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
 import UserDashboard from './components/Dashboard/UserDashboard';
 import FounderDashboard from './components/Dashboard/FounderDashboard';
 import IdeaSubmission from './components/Project/IdeaSubmission';
 import MatchList from './components/Matching/MatchList';
+import ProfileEdit from './components/Profile/ProfileEdit';
+import CollaborationRequests from './components/Collaboration/CollaborationRequests';
+import LiveChat from './components/Chat/LiveChat';
 import { getCurrentUser } from './utils/auth';
+import { useWebSocket } from './utils/websocket';
 import palette from './palette';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { connected, notifications, clearNotifications } = useWebSocket();
 
   useEffect(() => {
     checkAuth();
@@ -32,6 +38,10 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUser(null);
+  };
+
+  const handleCloseNotification = (id) => {
+    // Notification auto-removal is handled in the hook
   };
 
   if (loading) {
@@ -62,6 +72,13 @@ function App() {
         backgroundColor: palette.colors.background.primary 
       }}>
         {user && <Navbar user={user} onLogout={handleLogout} />}
+        
+        {/* WebSocket Notifications */}
+        <NotificationCenter 
+          notifications={notifications} 
+          onClose={handleCloseNotification}
+        />
+        
         <Routes>
           <Route 
             path="/login" 
@@ -82,6 +99,18 @@ function App() {
                 <Navigate to="/login" />
               )
             } 
+          />
+          <Route 
+            path="/profile/edit" 
+            element={user ? <ProfileEdit user={user} onUpdate={checkAuth} /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/requests" 
+            element={user ? <CollaborationRequests user={user} onRequestUpdate={checkAuth} /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/chat/:projectId" 
+            element={user ? <LiveChat user={user} /> : <Navigate to="/login" />} 
           />
           <Route 
             path="/submit-idea" 

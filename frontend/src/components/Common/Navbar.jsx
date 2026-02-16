@@ -39,27 +39,54 @@ const Navbar = ({ user, onLogout }) => {
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: palette.spacing.lg }}>
-          <span style={{
-            color: palette.colors.text.secondary,
-            fontSize: palette.typography.fontSize.sm,
+          {/* Requests Link */}
+          <Button 
+            onClick={() => navigate('/requests')} 
+            variant="outline" 
+            size="sm"
+          >
+            Requests
+          </Button>
+
+          {/* User Info */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: palette.spacing.md,
           }}>
-            {user.name}
-          </span>
-          <span style={{
-            backgroundColor: user.role === 'founder' 
-              ? 'rgba(19, 239, 183, 0.1)' 
-              : 'rgba(156, 163, 175, 0.1)',
-            color: user.role === 'founder' 
-              ? palette.colors.primary.cyan 
-              : palette.colors.text.secondary,
-            padding: `${palette.spacing.xs} ${palette.spacing.md}`,
-            borderRadius: palette.borderRadius.full,
-            fontSize: palette.typography.fontSize.xs,
-            fontWeight: palette.typography.fontWeight.medium,
-            textTransform: 'uppercase',
-          }}>
-            {user.role}
-          </span>
+            <span style={{
+              color: palette.colors.text.secondary,
+              fontSize: palette.typography.fontSize.sm,
+            }}>
+              {user.name}
+            </span>
+            <span style={{
+              backgroundColor: user.role === 'founder' 
+                ? 'rgba(19, 239, 183, 0.1)' 
+                : 'rgba(156, 163, 175, 0.1)',
+              color: user.role === 'founder' 
+                ? palette.colors.primary.cyan 
+                : palette.colors.text.secondary,
+              padding: `${palette.spacing.xs} ${palette.spacing.md}`,
+              borderRadius: palette.borderRadius.full,
+              fontSize: palette.typography.fontSize.xs,
+              fontWeight: palette.typography.fontWeight.medium,
+              textTransform: 'uppercase',
+            }}>
+              {user.role}
+            </span>
+          </div>
+
+          {/* Profile Edit Button */}
+          <Button 
+            onClick={() => navigate('/profile/edit')} 
+            variant="outline" 
+            size="sm"
+          >
+            Edit Profile
+          </Button>
+
+          {/* Logout Button */}
           <Button onClick={handleLogout} variant="secondary" size="sm">
             Logout
           </Button>
