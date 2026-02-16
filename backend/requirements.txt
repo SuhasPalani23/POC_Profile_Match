@@ -1,0 +1,12 @@
+Flask
+Flask-CORS
+pymongo
+python-dotenv
+bcrypt
+PyJWT
+google-genai
+faiss-cpu
+sentence-transformers
+numpy
+scikit-learn
+gunicorn
