@@ -16,7 +16,7 @@ def ingest_users():
     db = client[Config.DB_NAME]
     users_collection = db['users']
     
-    # Clear existing users (optional - remove if you want to keep existing data)
+    # Optional: Clear existing users
     # users_collection.delete_many({})
     
     # Read JSON file
@@ -41,23 +41,27 @@ def ingest_users():
             skipped_count += 1
             continue
         
-        # Prepare user document
+        # Prepare user document - MAP JSON FIELDS TO EXPECTED FIELDS
         user_doc = {
             "email": user_data.get('email', ''),
             "password": hashed_password,
-            "name": user_data.get('name', ''),
+            "name": user_data.get('full_name', ''),  # Map full_name to name
             "skills": user_data.get('skills', []),
             "bio": user_data.get('bio', ''),
-            "role": user_data.get('role', 'user'),
+            "role": user_data.get('user_role', 'user'),  # Map user_role to role
             "resume": user_data.get('resume', ''),
-            "linkedin": user_data.get('linkedin', ''),
+            "linkedin": "",
+            "professional_title": user_data.get('professional_title', ''),  # Keep this for reference
+            "experience_years": user_data.get('experience_years', 0),
+            "founding_mindset_score": user_data.get('founding_mindset_score', 0),
+            "location": user_data.get('location', ''),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
         
         # Insert user
         users_collection.insert_one(user_doc)
-        print(f"Inserted user: {user_doc['email']}")
+        print(f"Inserted user: {user_doc['email']} ({user_doc['name']})")
         inserted_count += 1
     
     print(f"\n=== Ingestion Complete ===")
