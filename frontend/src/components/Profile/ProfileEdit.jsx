@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { profileAPI } from '../../services/api';
 import Button from '../Common/Button';
@@ -14,42 +14,40 @@ const ProfileEdit = ({ user, onUpdate }) => {
     experience_years: user.experience_years || 0,
     location: user.location || '',
   });
-  
+
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [downloadingResume, setDownloadingResume] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [resumeAnalysis, setResumeAnalysis] = useState(null);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
   };
 
   const handleResumeChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!validTypes.includes(file.type)) {
-        setError('Only PDF and DOCX files are allowed');
-        return;
-      }
-      
-      // Validate file size (10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-      
-      setResume(file);
-      setError('');
+    if (!file) return;
+
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!validTypes.includes(file.type)) {
+      setError('Only PDF and DOCX files are allowed');
+      return;
     }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
+    setResume(file);
+    setError('');
   };
 
   const handleSubmit = async (e) => {
@@ -61,22 +59,17 @@ const ProfileEdit = ({ user, onUpdate }) => {
     try {
       const skillsArray = formData.skills
         .split(',')
-        .map(skill => skill.trim())
-        .filter(skill => skill);
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-      const updateData = {
+      await profileAPI.updateProfile({
         ...formData,
         skills: skillsArray,
-        experience_years: parseInt(formData.experience_years)
-      };
+        experience_years: parseInt(formData.experience_years),
+      });
 
-      const response = await profileAPI.updateProfile(updateData);
-      
       setSuccess('Profile updated successfully! Vectors are being updated...');
-      setTimeout(() => {
-        onUpdate();
-      }, 1500);
-      
+      setTimeout(() => onUpdate(), 1500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update profile');
     } finally {
@@ -98,23 +91,19 @@ const ProfileEdit = ({ user, onUpdate }) => {
       formDataResume.append('resume', resume);
 
       const response = await profileAPI.uploadResume(formDataResume);
-      
-      setSuccess('Resume uploaded and analyzed successfully!');
+
+      setSuccess('Resume uploaded and analysed successfully!');
       setResumeAnalysis(response.data.analysis);
       setResume(null);
-      
-      // Update form with extracted data
-      if (response.data.analysis.merged_skills) {
-        setFormData(prev => ({
+
+      if (response.data.analysis?.merged_skills) {
+        setFormData((prev) => ({
           ...prev,
-          skills: response.data.analysis.merged_skills.join(', ')
+          skills: response.data.analysis.merged_skills.join(', '),
         }));
       }
-      
-      setTimeout(() => {
-        onUpdate();
-      }, 1500);
-      
+
+      setTimeout(() => onUpdate(), 1500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload resume');
     } finally {
@@ -122,28 +111,67 @@ const ProfileEdit = ({ user, onUpdate }) => {
     }
   };
 
-  const handleDeleteResume = async () => {
-    if (!window.confirm('Are you sure you want to delete your resume?')) {
-      return;
+  /**
+   * Download the resume directly from MongoDB GridFS via the backend.
+   * Works on any developer's machine — file is not stored locally.
+   */
+  const handleDownloadResume = async () => {
+    setDownloadingResume(true);
+    try {
+      const response = await profileAPI.getResume(user._id);
+
+      // Create a temporary object URL and trigger browser download
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'application/pdf',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = user.resume || 'resume.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download resume');
+    } finally {
+      setDownloadingResume(false);
     }
+  };
+
+  const handleDeleteResume = async () => {
+    if (!window.confirm('Are you sure you want to delete your resume?')) return;
 
     try {
       await profileAPI.deleteResume();
       setSuccess('Resume deleted successfully');
-      setTimeout(() => {
-        onUpdate();
-      }, 1500);
+      setTimeout(() => onUpdate(), 1500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete resume');
     }
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: palette.spacing.md,
+    backgroundColor: palette.colors.background.primary,
+    border: `1px solid ${palette.colors.border.primary}`,
+    borderRadius: palette.borderRadius.md,
+    color: palette.colors.text.primary,
+    fontSize: palette.typography.fontSize.base,
+    outline: 'none',
+  };
+
+  const labelStyle = {
+    display: 'block',
+    color: palette.colors.text.primary,
+    fontSize: palette.typography.fontSize.sm,
+    fontWeight: palette.typography.fontWeight.medium,
+    marginBottom: palette.spacing.sm,
+  };
+
   return (
-    <div style={{
-      maxWidth: '900px',
-      margin: '0 auto',
-      padding: palette.spacing['2xl'],
-    }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: palette.spacing['2xl'] }}>
       <div style={{
         backgroundColor: palette.colors.background.secondary,
         borderRadius: palette.borderRadius.xl,
@@ -158,10 +186,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
           }}>
             <span className="gradient-text">Edit Profile</span>
           </h1>
-          <p style={{
-            fontSize: palette.typography.fontSize.base,
-            color: palette.colors.text.secondary,
-          }}>
+          <p style={{ fontSize: palette.typography.fontSize.base, color: palette.colors.text.secondary }}>
             Update your profile to improve your match quality
           </p>
         </div>
@@ -192,7 +217,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
           </div>
         )}
 
-        {/* Resume Upload Section */}
+        {/* ── Resume Section ── */}
         <div style={{
           backgroundColor: palette.colors.background.primary,
           borderRadius: palette.borderRadius.lg,
@@ -203,18 +228,19 @@ const ProfileEdit = ({ user, onUpdate }) => {
           <h2 style={{
             fontSize: palette.typography.fontSize.xl,
             fontWeight: palette.typography.fontWeight.semibold,
-            marginBottom: palette.spacing.md,
+            marginBottom: palette.spacing.sm,
           }}>
-            Resume Upload
+            Resume
           </h2>
           <p style={{
             color: palette.colors.text.secondary,
             marginBottom: palette.spacing.lg,
             fontSize: palette.typography.fontSize.sm,
           }}>
-            Upload your resume for AI-powered analysis and skill extraction
+            Stored securely in MongoDB — accessible to all team members regardless of machine.
           </p>
 
+          {/* Upload row */}
           <div style={{ display: 'flex', gap: palette.spacing.md, alignItems: 'center', marginBottom: palette.spacing.md }}>
             <input
               type="file"
@@ -234,10 +260,11 @@ const ProfileEdit = ({ user, onUpdate }) => {
               loading={uploadingResume}
               disabled={!resume}
             >
-              {uploadingResume ? 'Uploading...' : 'Upload & Analyze'}
+              {uploadingResume ? 'Uploading...' : 'Upload & Analyse'}
             </Button>
           </div>
 
+          {/* Current resume status */}
           {user.resume && (
             <div style={{
               display: 'flex',
@@ -253,18 +280,26 @@ const ProfileEdit = ({ user, onUpdate }) => {
                 fontSize: palette.typography.fontSize.sm,
                 flex: 1,
               }}>
-                ✓ Resume uploaded
+                ✓ {user.resume}
               </span>
+
+              {/* Download from GridFS */}
               <Button
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                onClick={handleDeleteResume}
+                onClick={handleDownloadResume}
+                loading={downloadingResume}
               >
+                {downloadingResume ? 'Downloading...' : 'Download'}
+              </Button>
+
+              <Button variant="secondary" size="sm" onClick={handleDeleteResume}>
                 Delete
               </Button>
             </div>
           )}
 
+          {/* Analysis results */}
           {resumeAnalysis && (
             <div style={{
               marginTop: palette.spacing.lg,
@@ -280,6 +315,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
               }}>
                 Resume Analysis Results
               </h3>
+
               {resumeAnalysis.ai_insights?.summary && (
                 <p style={{
                   color: palette.colors.text.secondary,
@@ -290,7 +326,8 @@ const ProfileEdit = ({ user, onUpdate }) => {
                   {resumeAnalysis.ai_insights.summary}
                 </p>
               )}
-              {resumeAnalysis.merged_skills && (
+
+              {resumeAnalysis.merged_skills?.length > 0 && (
                 <div>
                   <p style={{
                     color: palette.colors.text.tertiary,
@@ -301,16 +338,13 @@ const ProfileEdit = ({ user, onUpdate }) => {
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: palette.spacing.xs }}>
                     {resumeAnalysis.merged_skills.slice(0, 10).map((skill, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          backgroundColor: 'rgba(19, 239, 183, 0.1)',
-                          color: palette.colors.primary.cyan,
-                          padding: `${palette.spacing.xs} ${palette.spacing.sm}`,
-                          borderRadius: palette.borderRadius.md,
-                          fontSize: palette.typography.fontSize.xs,
-                        }}
-                      >
+                      <span key={index} style={{
+                        backgroundColor: 'rgba(19, 239, 183, 0.1)',
+                        color: palette.colors.primary.cyan,
+                        padding: `${palette.spacing.xs} ${palette.spacing.sm}`,
+                        borderRadius: palette.borderRadius.md,
+                        fontSize: palette.typography.fontSize.xs,
+                      }}>
                         {skill}
                       </span>
                     ))}
@@ -321,7 +355,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
           )}
         </div>
 
-        {/* Profile Form */}
+        {/* ── Profile Form ── */}
         <form onSubmit={handleSubmit}>
           <div style={{
             display: 'grid',
@@ -330,64 +364,30 @@ const ProfileEdit = ({ user, onUpdate }) => {
             marginBottom: palette.spacing.lg,
           }}>
             <div>
-              <label style={{
-                display: 'block',
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.sm,
-                fontWeight: palette.typography.fontWeight.medium,
-                marginBottom: palette.spacing.sm,
-              }}>
-                Full Name *
-              </label>
+              <label style={labelStyle}>Full Name *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 required
-                style={{
-                  width: '100%',
-                  padding: palette.spacing.md,
-                  backgroundColor: palette.colors.background.primary,
-                  border: `1px solid ${palette.colors.border.primary}`,
-                  borderRadius: palette.borderRadius.md,
-                  color: palette.colors.text.primary,
-                  fontSize: palette.typography.fontSize.base,
-                  outline: 'none',
-                }}
-                onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-                onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+                onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
               />
             </div>
 
             <div>
-              <label style={{
-                display: 'block',
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.sm,
-                fontWeight: palette.typography.fontWeight.medium,
-                marginBottom: palette.spacing.sm,
-              }}>
-                Professional Title
-              </label>
+              <label style={labelStyle}>Professional Title</label>
               <input
                 type="text"
                 name="professional_title"
                 value={formData.professional_title}
                 onChange={handleChange}
-                placeholder="e.g., Senior Software Engineer"
-                style={{
-                  width: '100%',
-                  padding: palette.spacing.md,
-                  backgroundColor: palette.colors.background.primary,
-                  border: `1px solid ${palette.colors.border.primary}`,
-                  borderRadius: palette.borderRadius.md,
-                  color: palette.colors.text.primary,
-                  fontSize: palette.typography.fontSize.base,
-                  outline: 'none',
-                }}
-                onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-                onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+                placeholder="e.g. Senior Software Engineer"
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+                onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
               />
             </div>
           </div>
@@ -399,15 +399,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
             marginBottom: palette.spacing.lg,
           }}>
             <div>
-              <label style={{
-                display: 'block',
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.sm,
-                fontWeight: palette.typography.fontWeight.medium,
-                marginBottom: palette.spacing.sm,
-              }}>
-                Years of Experience
-              </label>
+              <label style={labelStyle}>Years of Experience</label>
               <input
                 type="number"
                 name="experience_years"
@@ -415,127 +407,57 @@ const ProfileEdit = ({ user, onUpdate }) => {
                 onChange={handleChange}
                 min="0"
                 max="50"
-                style={{
-                  width: '100%',
-                  padding: palette.spacing.md,
-                  backgroundColor: palette.colors.background.primary,
-                  border: `1px solid ${palette.colors.border.primary}`,
-                  borderRadius: palette.borderRadius.md,
-                  color: palette.colors.text.primary,
-                  fontSize: palette.typography.fontSize.base,
-                  outline: 'none',
-                }}
-                onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-                onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+                onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
               />
             </div>
 
             <div>
-              <label style={{
-                display: 'block',
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.sm,
-                fontWeight: palette.typography.fontWeight.medium,
-                marginBottom: palette.spacing.sm,
-              }}>
-                Location
-              </label>
+              <label style={labelStyle}>Location</label>
               <input
                 type="text"
                 name="location"
                 value={formData.location}
                 onChange={handleChange}
-                placeholder="e.g., San Francisco, CA"
-                style={{
-                  width: '100%',
-                  padding: palette.spacing.md,
-                  backgroundColor: palette.colors.background.primary,
-                  border: `1px solid ${palette.colors.border.primary}`,
-                  borderRadius: palette.borderRadius.md,
-                  color: palette.colors.text.primary,
-                  fontSize: palette.typography.fontSize.base,
-                  outline: 'none',
-                }}
-                onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-                onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+                placeholder="e.g. San Francisco, CA"
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+                onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
               />
             </div>
           </div>
 
           <div style={{ marginBottom: palette.spacing.lg }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.sm,
-              fontWeight: palette.typography.fontWeight.medium,
-              marginBottom: palette.spacing.sm,
-            }}>
-              LinkedIn Profile
-            </label>
+            <label style={labelStyle}>LinkedIn Profile</label>
             <input
               type="url"
               name="linkedin"
               value={formData.linkedin}
               onChange={handleChange}
               placeholder="https://linkedin.com/in/yourprofile"
-              style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
-              }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+              style={inputStyle}
+              onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+              onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
             />
           </div>
 
           <div style={{ marginBottom: palette.spacing.lg }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.sm,
-              fontWeight: palette.typography.fontWeight.medium,
-              marginBottom: palette.spacing.sm,
-            }}>
-              Skills (comma-separated)
-            </label>
+            <label style={labelStyle}>Skills (comma-separated)</label>
             <textarea
               name="skills"
               value={formData.skills}
               onChange={handleChange}
               rows={3}
-              placeholder="e.g., Python, React, Machine Learning, AWS"
-              style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
-                resize: 'vertical',
-                fontFamily: palette.typography.fontFamily.primary,
-              }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+              placeholder="e.g. Python, React, Machine Learning, AWS"
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: palette.typography.fontFamily.primary }}
+              onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+              onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
             />
           </div>
 
           <div style={{ marginBottom: palette.spacing.xl }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.sm,
-              fontWeight: palette.typography.fontWeight.medium,
-              marginBottom: palette.spacing.sm,
-            }}>
-              Bio
-            </label>
+            <label style={labelStyle}>Bio</label>
             <textarea
               name="bio"
               value={formData.bio}
@@ -543,33 +465,18 @@ const ProfileEdit = ({ user, onUpdate }) => {
               rows={5}
               placeholder="Tell us about yourself and your professional journey..."
               style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
+                ...inputStyle,
                 resize: 'vertical',
                 fontFamily: palette.typography.fontFamily.primary,
                 lineHeight: palette.typography.lineHeight.relaxed,
               }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
+              onFocus={(e) => (e.target.style.borderColor = palette.colors.primary.cyan)}
+              onBlur={(e) => (e.target.style.borderColor = palette.colors.border.primary)}
             />
           </div>
 
-          <div style={{
-            display: 'flex',
-            gap: palette.spacing.md,
-            justifyContent: 'flex-end',
-          }}>
-            <Button 
-              type="button" 
-              variant="secondary" 
-              onClick={() => navigate('/dashboard')}
-            >
+          <div style={{ display: 'flex', gap: palette.spacing.md, justifyContent: 'flex-end' }}>
+            <Button type="button" variant="secondary" onClick={() => navigate('/dashboard')}>
               Cancel
             </Button>
             <Button type="submit" loading={loading}>

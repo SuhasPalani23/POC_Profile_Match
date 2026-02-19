@@ -9,3 +9,5 @@ __pycache__/
 *faiss*
 backend/.env
 *.pdf
+*.log
+.DS_Store

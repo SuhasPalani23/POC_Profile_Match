@@ -7,7 +7,7 @@ python-dotenv
 bcrypt
 PyJWT
 google-genai
-faiss-cpu
+pinecone
 sentence-transformers
 numpy
 scikit-learn
