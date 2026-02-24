@@ -18,10 +18,23 @@ import palette from './palette';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loaderText, setLoaderText] = useState('');
   const { connected, notifications, clearNotifications } = useWebSocket();
 
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const text = 'SCANNING THE TALENT POOL';
+    let index = 0;
+    const interval = setInterval(() => {
+      index += 1;
+      setLoaderText(text.slice(0, index));
+      if (index >= text.length) clearInterval(interval);
+    }, 60);
+
+    return () => clearInterval(interval);
   }, []);
 
   const checkAuth = async () => {
@@ -46,28 +59,33 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: palette.colors.background.primary,
-      }}>
+      <div className="cinematic-loader">
         <div style={{
-          width: '48px',
-          height: '48px',
-          border: `4px solid ${palette.colors.border.primary}`,
-          borderTop: `4px solid ${palette.colors.primary.cyan}`,
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }}></div>
+          position: 'relative',
+          zIndex: 3,
+          display: 'grid',
+          justifyItems: 'center',
+          gap: palette.spacing.lg,
+          textAlign: 'center',
+        }}>
+          <div className="pulse-ring" />
+          <p style={{
+            fontFamily: palette.typography.fontFamily.mono,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            fontSize: palette.typography.fontSize.xs,
+            color: palette.colors.text.secondary,
+          }}>
+            {loaderText}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <Router>
-      <div style={{ 
+      <div className="app-shell" style={{ 
         minHeight: '100vh', 
         backgroundColor: palette.colors.background.primary 
       }}>
@@ -122,6 +140,31 @@ function App() {
           />
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
         </Routes>
+        <footer style={{
+          marginTop: palette.spacing['2xl'],
+          borderTop: `1px solid ${palette.colors.border.primary}`,
+          padding: `${palette.spacing.xl} ${palette.spacing.lg}`,
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: '-160px',
+            transform: 'translateX(-50%)',
+            width: '560px',
+            height: '260px',
+            background: 'radial-gradient(circle, rgba(201,168,76,0.05) 0%, rgba(201,168,76,0) 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Founding Mindset</p>
+            <p style={{ color: palette.colors.text.tertiary, fontSize: palette.typography.fontSize.xs }}>
+              Copyright {new Date().getFullYear()} Founding Mindset. All rights reserved.
+            </p>
+          </div>
+        </footer>
       </div>
     </Router>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { matchingAPI, projectAPI, collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
@@ -12,18 +12,96 @@ const MatchList = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sendingTo, setSendingTo] = useState(null);
+  const [sentRequests, setSentRequests] = useState({});
+  const [displayedCount, setDisplayedCount] = useState(0);
+  const [visibleCards, setVisibleCards] = useState({});
+  const cardsRef = useRef([]);
 
   useEffect(() => {
     fetchData();
   }, [projectId]);
 
+  useEffect(() => {
+    let raf;
+    let start;
+    const target = matches.length;
+    const duration = 900;
+
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      setDisplayedCount(Math.round(progress * target));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [matches.length]);
+
+  useEffect(() => {
+    if (matches.length === 0) return;
+
+    // Small delay to let DOM render first
+    const timer = setTimeout(() => {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const index = Number(entry.target.getAttribute('data-index'));
+              setTimeout(() => {
+                setVisibleCards((prev) => ({ ...prev, [index]: true }));
+              }, index * 100);
+            }
+          });
+        },
+        { threshold: 0.01 } // lowered from 0.18 so cards trigger even when fully in view
+      );
+
+      cardsRef.current.forEach((node) => node && observer.observe(node));
+
+      // Force all visible immediately as fallback after 600ms
+      const fallback = setTimeout(() => {
+        const allVisible = {};
+        matches.forEach((_, i) => { allVisible[i] = true; });
+        setVisibleCards(allVisible);
+      }, 600);
+
+      return () => {
+        observer.disconnect();
+        clearTimeout(fallback);
+      };
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [matches]);
+
   const fetchData = async () => {
+    setSentRequests({});
     try {
       const projectResponse = await projectAPI.getProject(projectId);
       setProject(projectResponse.data.project);
 
       const matchesResponse = await matchingAPI.getMatches(projectId);
-      setMatches(matchesResponse.data.matches);
+      const matchList = matchesResponse.data.matches || [];
+      setMatches(matchList);
+      localStorage.setItem(`project_match_count_${projectId}`, String(matchList.length));
+
+      // If cached, make all cards visible immediately
+      if (matchesResponse.data.cached) {
+        const allVisible = {};
+        matchList.forEach((_, i) => { allVisible[i] = true; });
+        setVisibleCards(allVisible);
+      }
+
+      const sentRequestsResponse = await collaborationAPI
+        .getSentRequestsForProject(projectId)
+        .catch(() => ({ data: { candidate_ids: [] } }));
+
+      const persistedSentMap = {};
+      (sentRequestsResponse.data?.candidate_ids || []).forEach((candidateId) => {
+        persistedSentMap[candidateId] = true;
+      });
+      setSentRequests(persistedSentMap);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load matches');
     } finally {
@@ -31,17 +109,25 @@ const MatchList = ({ user }) => {
     }
   };
 
-  const handleSendRequest = async (candidateId, candidateName) => {
+  const handleSendRequest = async (candidateId, candidateName, isFounder) => {
+    if (isFounder) return;
+    if (sentRequests[candidateId]) return;
+
     setSendingTo(candidateId);
     try {
-      await collaborationAPI.sendRequest({
+      await matchingAPI.sendRequest({
         project_id: projectId,
         candidate_id: candidateId,
-        message: `Hi! I'd love to have you join my project "${project.title}". Your skills would be a great fit for our team!`
+        message: `Hi! I'd love to have you join my project "${project.title}". Your skills would be a great fit for our team!`,
       });
-      alert(`Request sent to ${candidateName}!`);
+      setSentRequests((prev) => ({ ...prev, [candidateId]: true }));
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to send request');
+      const errorMessage = err.response?.data?.error || 'Failed to send request';
+      if (errorMessage.toLowerCase().includes('already sent')) {
+        setSentRequests((prev) => ({ ...prev, [candidateId]: true }));
+      } else {
+        alert(errorMessage);
+      }
     } finally {
       setSendingTo(null);
     }
@@ -49,20 +135,11 @@ const MatchList = ({ user }) => {
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '80vh',
-      }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          border: `4px solid ${palette.colors.border.primary}`,
-          borderTop: `4px solid ${palette.colors.primary.cyan}`,
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }}></div>
+      <div className="cinematic-loader" style={{ minHeight: '80vh' }}>
+        <div style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
+          <div className="pulse-ring" style={{ margin: '0 auto 1.25rem auto' }} />
+          <p className="mono-label">Scanning the talent pool</p>
+        </div>
       </div>
     );
   }
@@ -70,34 +147,25 @@ const MatchList = ({ user }) => {
   if (error) {
     return (
       <div style={{
-        maxWidth: '800px',
+        maxWidth: '980px',
         margin: '0 auto',
         padding: palette.spacing['2xl'],
         textAlign: 'center',
       }}>
-        <div style={{
-          backgroundColor: palette.colors.background.secondary,
+        <div className="surface-card" style={{
           borderRadius: palette.borderRadius.xl,
-          border: `1px solid ${palette.colors.status.error}`,
-          padding: palette.spacing['3xl'],
+          padding: palette.spacing['2xl'],
         }}>
-          <div style={{
-            fontSize: palette.typography.fontSize['6xl'],
-            marginBottom: palette.spacing.lg,
-          }}>
-            ⚠️
-          </div>
+          <p className="mono-label" style={{ marginBottom: palette.spacing.md }}>System Alert</p>
           <h2 style={{
-            fontSize: palette.typography.fontSize['2xl'],
-            fontWeight: palette.typography.fontWeight.bold,
+            fontFamily: palette.typography.fontFamily.display,
+            fontSize: palette.typography.fontSize['3xl'],
             color: palette.colors.status.error,
             marginBottom: palette.spacing.md,
           }}>
             {error}
           </h2>
-          <Button onClick={() => navigate('/dashboard')}>
-            Back to Dashboard
-          </Button>
+          <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
         </div>
       </div>
     );
@@ -105,79 +173,70 @@ const MatchList = ({ user }) => {
 
   return (
     <div style={{
-      maxWidth: '1400px',
+      maxWidth: '1200px',
       margin: '0 auto',
-      padding: palette.spacing['2xl'],
+      padding: `${palette.spacing['2xl']} clamp(1rem, 3vw, 2rem)`,
     }}>
       <div style={{ marginBottom: palette.spacing['2xl'] }}>
-        <Button 
-          variant="secondary" 
+        <Button
+          variant="secondary"
           onClick={() => navigate('/dashboard')}
           style={{ marginBottom: palette.spacing.lg }}
         >
-          ← Back to Dashboard
+          Back to Dashboard
         </Button>
-        
+
         <h1 style={{
-          fontSize: palette.typography.fontSize['4xl'],
-          fontWeight: palette.typography.fontWeight.black,
-          marginBottom: palette.spacing.md,
+          fontFamily: palette.typography.fontFamily.display,
+          fontSize: palette.typography.fontSize['5xl'],
+          fontWeight: palette.typography.fontWeight.bold,
+          marginBottom: palette.spacing.sm,
+          lineHeight: 0.9,
         }}>
-          <span className="gradient-text">Top Matches</span>
+          <span className="gradient-text">Match Intelligence</span>
         </h1>
-        
+        <p className="mono-label">{displayedCount} / {matches.length} matches found</p>
+
         {project && (
-          <div style={{
-            backgroundColor: palette.colors.background.secondary,
+          <div className="surface-card" style={{
             borderRadius: palette.borderRadius.lg,
-            border: `1px solid ${palette.colors.border.primary}`,
             padding: palette.spacing.xl,
             marginTop: palette.spacing.lg,
           }}>
+            <p className="mono-label" style={{ marginBottom: palette.spacing.sm }}>Project Brief</p>
             <h2 style={{
-              fontSize: palette.typography.fontSize.xl,
-              fontWeight: palette.typography.fontWeight.semibold,
+              fontFamily: palette.typography.fontFamily.display,
+              fontSize: palette.typography.fontSize['2xl'],
               marginBottom: palette.spacing.sm,
             }}>
               {project.title}
             </h2>
             <p style={{
               color: palette.colors.text.secondary,
-              fontSize: palette.typography.fontSize.base,
+              fontSize: palette.typography.fontSize.sm,
               lineHeight: palette.typography.lineHeight.relaxed,
             }}>
-              {project.description.substring(0, 200)}...
+              {project.description.substring(0, 220)}...
             </p>
           </div>
         )}
       </div>
 
       {matches.length === 0 ? (
-        <div style={{
+        <div className="surface-card" style={{
           textAlign: 'center',
           padding: palette.spacing['3xl'],
-          backgroundColor: palette.colors.background.secondary,
           borderRadius: palette.borderRadius.xl,
-          border: `1px solid ${palette.colors.border.primary}`,
         }}>
-          <div style={{
-            fontSize: palette.typography.fontSize['6xl'],
-            marginBottom: palette.spacing.lg,
-          }}>
-            🔍
-          </div>
           <h3 style={{
-            fontSize: palette.typography.fontSize['2xl'],
-            fontWeight: palette.typography.fontWeight.semibold,
+            fontFamily: palette.typography.fontFamily.display,
+            fontSize: palette.typography.fontSize['3xl'],
             marginBottom: palette.spacing.md,
           }}>
             No Matches Found
           </h3>
-          <p style={{
-            color: palette.colors.text.secondary,
-            fontSize: palette.typography.fontSize.lg,
-          }}>
-            We couldn't find suitable matches at this time.
+          <p style={{ color: palette.colors.text.secondary }}>
+            We could not find suitable candidates for this project.
           </p>
         </div>
       ) : (
@@ -185,11 +244,13 @@ const MatchList = ({ user }) => {
           {matches.map((match, index) => (
             <div
               key={match.user_id}
+              ref={(el) => { cardsRef.current[index] = el; }}
+              data-index={index}
+              className={`surface-card reveal-card ${visibleCards[index] ? 'visible' : ''}`}
               style={{
-                backgroundColor: palette.colors.background.secondary,
-                border: `2px solid ${palette.colors.border.primary}`,
                 borderRadius: palette.borderRadius.xl,
                 padding: palette.spacing.xl,
+                transition: `opacity 400ms ease, transform 400ms ease`,
               }}
             >
               <div style={{
@@ -198,57 +259,70 @@ const MatchList = ({ user }) => {
                 gap: palette.spacing.xl,
                 alignItems: 'start',
               }}>
-                {/* Rank & Match % */}
-                <div style={{ textAlign: 'center' }}>
+                {/* Match percentage */}
+                <div style={{ textAlign: 'center', minWidth: '110px' }}>
                   <div style={{
+                    fontFamily: palette.typography.fontFamily.mono,
                     fontSize: palette.typography.fontSize['4xl'],
-                    fontWeight: palette.typography.fontWeight.black,
                     color: palette.colors.primary.cyan,
+                    lineHeight: 1,
                   }}>
                     {match.match_percentage}%
                   </div>
-                  <div style={{
-                    fontSize: palette.typography.fontSize.xs,
-                    color: palette.colors.text.tertiary,
-                  }}>
-                    #{index + 1} MATCH
+                  <div className="mono-label" style={{ marginTop: palette.spacing.xs }}>
+                    #{index + 1} match
                   </div>
+                  <div
+                    className="match-avatar"
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      margin: `${palette.spacing.md} auto 0 auto`,
+                      background: 'linear-gradient(135deg, #3a3a3a, #0f0f0f)',
+                      filter: 'grayscale(1)',
+                      transition: `filter ${palette.transitions.normal} cubic-bezier(0.16, 1, 0.3, 1)`,
+                    }}
+                  />
                 </div>
 
-                {/* Candidate Info */}
+                {/* Candidate info */}
                 <div>
                   <h3 style={{
+                    fontFamily: palette.typography.fontFamily.display,
                     fontSize: palette.typography.fontSize['2xl'],
-                    fontWeight: palette.typography.fontWeight.bold,
-                    marginBottom: palette.spacing.sm,
+                    marginBottom: palette.spacing.xs,
                   }}>
                     {match.name}
                   </h3>
-                  
-                  <p style={{
-                    color: palette.colors.text.secondary,
-                    fontSize: palette.typography.fontSize.sm,
-                    marginBottom: palette.spacing.md,
-                  }}>
-                    {match.role}
+                  <p className="mono-label" style={{ marginBottom: palette.spacing.md }}>
+                    {match.professional_title || match.role}
                   </p>
 
-                  {/* Skills */}
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
                     gap: palette.spacing.xs,
                     marginBottom: palette.spacing.md,
                   }}>
-                    {match.skills.slice(0, 6).map((skill, idx) => (
+                    {(match.skills || []).slice(0, 6).map((skill, idx) => (
                       <span
                         key={idx}
                         style={{
-                          backgroundColor: 'rgba(19, 239, 183, 0.1)',
-                          color: palette.colors.primary.cyan,
+                          border: `1px solid ${palette.colors.border.primary}`,
+                          color: palette.colors.text.tertiary,
                           padding: `${palette.spacing.xs} ${palette.spacing.sm}`,
-                          borderRadius: palette.borderRadius.md,
+                          borderRadius: palette.borderRadius.full,
                           fontSize: palette.typography.fontSize.xs,
+                          transition: `all ${palette.transitions.normal} cubic-bezier(0.16, 1, 0.3, 1)`,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = palette.colors.primary.cyan;
+                          e.currentTarget.style.color = palette.colors.text.primary;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = palette.colors.border.primary;
+                          e.currentTarget.style.color = palette.colors.text.tertiary;
                         }}
                       >
                         {skill}
@@ -256,48 +330,40 @@ const MatchList = ({ user }) => {
                     ))}
                   </div>
 
-                  {/* Reasoning */}
-                  <div style={{
-                    backgroundColor: palette.colors.background.primary,
-                    padding: palette.spacing.md,
-                    borderRadius: palette.borderRadius.md,
-                    marginBottom: palette.spacing.md,
-                  }}>
-                    <p style={{
-                      fontSize: palette.typography.fontSize.sm,
-                      color: palette.colors.text.secondary,
-                      lineHeight: palette.typography.lineHeight.relaxed,
+                  {match.reasoning && (
+                    <div style={{
+                      backgroundColor: palette.colors.background.tertiary,
+                      border: `1px solid ${palette.colors.border.primary}`,
+                      padding: palette.spacing.md,
+                      borderRadius: palette.borderRadius.md,
+                      marginBottom: palette.spacing.md,
                     }}>
-                      {match.reasoning}
-                    </p>
-                  </div>
-
-                  {/* Strengths */}
-                  {match.strengths && match.strengths.length > 0 && (
-                    <div style={{ marginBottom: palette.spacing.sm }}>
                       <p style={{
-                        fontSize: palette.typography.fontSize.xs,
-                        color: palette.colors.status.success,
-                        fontWeight: palette.typography.fontWeight.semibold,
+                        fontSize: palette.typography.fontSize.sm,
+                        color: palette.colors.text.secondary,
+                        lineHeight: palette.typography.lineHeight.relaxed,
+                      }}>
+                        {match.reasoning}
+                      </p>
+                    </div>
+                  )}
+
+                  {match.strengths && match.strengths.length > 0 && (
+                    <div>
+                      <p className="mono-label" style={{
+                        color: palette.colors.primary.cyan,
                         marginBottom: palette.spacing.xs,
                       }}>
-                        ✓ Strengths
+                        Strengths
                       </p>
-                      <ul style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: 0,
-                      }}>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                         {match.strengths.slice(0, 3).map((strength, idx) => (
-                          <li
-                            key={idx}
-                            style={{
-                              fontSize: palette.typography.fontSize.xs,
-                              color: palette.colors.text.secondary,
-                              marginBottom: palette.spacing.xs,
-                            }}
-                          >
-                            • {strength}
+                          <li key={idx} style={{
+                            color: palette.colors.text.secondary,
+                            fontSize: palette.typography.fontSize.xs,
+                            marginBottom: palette.spacing.xs,
+                          }}>
+                            ✓ {strength}
                           </li>
                         ))}
                       </ul>
@@ -305,14 +371,52 @@ const MatchList = ({ user }) => {
                   )}
                 </div>
 
-                {/* Action Button */}
-                <Button
-                  onClick={() => handleSendRequest(match.user_id, match.name)}
-                  loading={sendingTo === match.user_id}
-                  disabled={sendingTo !== null}
-                >
-                  Send Request
-                </Button>
+                {/* Action button */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  gap: palette.spacing.sm,
+                  minWidth: '150px',
+                }}>
+                  {match.is_founder ? (
+                    <div style={{
+                      padding: `${palette.spacing.sm} ${palette.spacing.md}`,
+                      border: `1px solid ${palette.colors.border.primary}`,
+                      borderRadius: palette.borderRadius.sm,
+                      color: palette.colors.text.tertiary,
+                      fontFamily: palette.typography.fontFamily.mono,
+                      fontSize: palette.typography.fontSize.xs,
+                      letterSpacing: '0.08em',
+                      textAlign: 'center',
+                      lineHeight: 1.6,
+                    }}>
+                      ⚠ Founder —<br />not available
+                    </div>
+                  ) : sentRequests[match.user_id] ? (
+                    <div style={{
+                      padding: `${palette.spacing.sm} ${palette.spacing.md}`,
+                      border: `1px solid ${palette.colors.border.secondary}`,
+                      borderRadius: palette.borderRadius.sm,
+                      color: '#4ade80',
+                      fontFamily: palette.typography.fontFamily.mono,
+                      fontSize: palette.typography.fontSize.xs,
+                      letterSpacing: '0.08em',
+                      textAlign: 'center',
+                    }}>
+                      ✓ Request Sent
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => handleSendRequest(match.user_id, match.name, match.is_founder)}
+                      loading={sendingTo === match.user_id}
+                      disabled={sendingTo !== null || sentRequests[match.user_id]}
+                      variant="primary"
+                    >
+                      Send Request
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

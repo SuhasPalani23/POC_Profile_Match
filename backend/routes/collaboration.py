@@ -86,6 +86,31 @@ def get_my_requests(current_user):
     
     return jsonify({"requests": enriched_requests}), 200
 
+@collaboration_bp.route('/sent-requests/<project_id>', methods=['GET'])
+@token_required
+def get_sent_requests_for_project(current_user, project_id):
+    """Get all sent collaboration requests for a founder and project"""
+    project = Project.find_by_id(project_id)
+
+    if not project:
+        return jsonify({"error": "Project not found"}), 404
+
+    if project['founder_id'] != current_user['_id']:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    all_project_requests = Collaboration.find_by_project(project_id)
+    founder_requests = [
+        req for req in all_project_requests if req.get('founder_id') == current_user['_id']
+    ]
+
+    candidate_ids = [req.get('candidate_id') for req in founder_requests if req.get('candidate_id')]
+
+    return jsonify({
+        "project_id": project_id,
+        "candidate_ids": candidate_ids,
+        "requests": founder_requests
+    }), 200
+
 @collaboration_bp.route('/accept/<collaboration_id>', methods=['POST'])
 @token_required
 def accept_request(current_user, collaboration_id):
