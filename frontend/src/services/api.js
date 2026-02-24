@@ -91,6 +91,8 @@ export const profileAPI = {
 export const collaborationAPI = {
   sendRequest: (data) => api.post('/collaboration/send-request', data),
   getMyRequests: () => api.get('/collaboration/my-requests'),
+  getSentRequestsForProject: (projectId) =>
+    api.get(`/collaboration/sent-requests/${projectId}`),
   acceptRequest: (collaborationId) =>
     api.post(`/collaboration/accept/${collaborationId}`),
   rejectRequest: (collaborationId) =>

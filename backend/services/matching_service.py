@@ -57,6 +57,7 @@ class MatchingService:
                         "name": candidate.get("name", ""),
                         "email": candidate.get("email", ""),
                         "role": candidate.get("role", "user"),
+                        "is_founder": candidate.get("role", "user") == "founder",
                         "professional_title": candidate.get("professional_title", ""),
                         "skills": candidate.get("skills", []),
                         "bio": candidate.get("bio", ""),

@@ -26,7 +26,7 @@ const IdeaSubmission = ({ user, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (formData.description.length < 500) {
       setError('Description must be at least 500 characters');
       return;
@@ -38,8 +38,8 @@ const IdeaSubmission = ({ user, onSubmit }) => {
     try {
       const skillsArray = formData.required_skills
         .split(',')
-        .map(skill => skill.trim())
-        .filter(skill => skill);
+        .map((skill) => skill.trim())
+        .filter((skill) => skill);
 
       const response = await projectAPI.create({
         title: formData.title,
@@ -47,12 +47,10 @@ const IdeaSubmission = ({ user, onSubmit }) => {
         required_skills: skillsArray,
       });
 
-      // Wait for 10 seconds (simulating review process)
       setTimeout(async () => {
-        await onSubmit(); // Refresh user data
+        await onSubmit();
         navigate(`/matches/${response.data.project._id}`);
       }, 10000);
-
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit project');
       setLoading(false);
@@ -62,194 +60,147 @@ const IdeaSubmission = ({ user, onSubmit }) => {
 
   if (submitting) {
     return (
-      <div style={{
-        maxWidth: '800px',
-        margin: '0 auto',
-        padding: palette.spacing['2xl'],
-      }}>
-        <div style={{
-          backgroundColor: palette.colors.background.secondary,
-          borderRadius: palette.borderRadius.xl,
-          border: `1px solid ${palette.colors.border.primary}`,
-          padding: palette.spacing['2xl'],
-        }}>
-          <LoadingAnimation 
-            message="Reviewing Your Vision" 
-            duration={10000}
-          />
-        </div>
+      <div style={{ maxWidth: '560px', margin: '0 auto', padding: palette.spacing['2xl'] }}>
+        <LoadingAnimation message="Reviewing your vision and calibrating fit models." duration={10000} />
       </div>
     );
   }
 
+  const inputStyle = {
+    width: '100%',
+    padding: `${palette.spacing.sm} 0`,
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderBottom: '1px solid #333333',
+    color: palette.colors.text.primary,
+    fontSize: palette.typography.fontSize.base,
+    outline: 'none',
+    transition: `border-color ${palette.transitions.normal} cubic-bezier(0.16, 1, 0.3, 1), box-shadow ${palette.transitions.normal} cubic-bezier(0.16, 1, 0.3, 1)`,
+  };
+
   return (
     <div style={{
-      maxWidth: '800px',
+      maxWidth: '560px',
       margin: '0 auto',
       padding: palette.spacing['2xl'],
     }}>
-      <div style={{
-        backgroundColor: palette.colors.background.secondary,
-        borderRadius: palette.borderRadius.xl,
-        border: `1px solid ${palette.colors.border.primary}`,
-        padding: palette.spacing['2xl'],
+      <p className="mono-label" style={{ marginBottom: palette.spacing.md }}>Founder Submission</p>
+      <h1 style={{
+        fontFamily: palette.typography.fontFamily.display,
+        fontSize: palette.typography.fontSize['4xl'],
+        marginBottom: palette.spacing.md,
       }}>
-        <div style={{ textAlign: 'center', marginBottom: palette.spacing['2xl'] }}>
-          <h1 style={{
-            fontSize: palette.typography.fontSize['4xl'],
-            fontWeight: palette.typography.fontWeight.black,
-            marginBottom: palette.spacing.md,
-          }}>
-            <span className="gradient-text">Submit Your Vision</span>
-          </h1>
-          <p style={{
-            fontSize: palette.typography.fontSize.lg,
-            color: palette.colors.text.secondary,
-          }}>
-            Share your startup idea and let AI find your perfect co-founders
-          </p>
+        Submit Your Startup Vision
+      </h1>
+      <p style={{
+        color: palette.colors.text.secondary,
+        marginBottom: palette.spacing.xl,
+      }}>
+        Build the brief that drives your match pipeline.
+      </p>
+      <div style={{
+        marginBottom: palette.spacing.xl,
+        height: '1px',
+        backgroundColor: palette.colors.border.primary,
+        transform: 'scaleX(0)',
+      }} className="rule-draw" />
+
+      {error && (
+        <div style={{
+          backgroundColor: 'rgba(216, 107, 107, 0.08)',
+          border: `1px solid ${palette.colors.status.error}`,
+          color: palette.colors.status.error,
+          padding: palette.spacing.md,
+          borderRadius: palette.borderRadius.md,
+          marginBottom: palette.spacing.lg,
+          fontSize: palette.typography.fontSize.sm,
+        }}>
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: palette.spacing.xl }}>
+        <div>
+          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
+            Project Title *
+          </label>
+          <input
+            type="text"
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
+            required
+            style={inputStyle}
+            onFocus={(e) => {
+              e.target.style.borderBottomColor = palette.colors.primary.cyan;
+              e.target.style.boxShadow = `0 2px 0 ${palette.colors.primary.cyan}`;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderBottomColor = '#333333';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
         </div>
 
-        {error && (
+        <div>
+          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
+            Project Description * (minimum 500 characters)
+          </label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            required
+            rows={12}
+            style={{ ...inputStyle, resize: 'vertical', fontFamily: palette.typography.fontFamily.primary }}
+            onFocus={(e) => {
+              e.target.style.borderBottomColor = palette.colors.primary.cyan;
+              e.target.style.boxShadow = `0 2px 0 ${palette.colors.primary.cyan}`;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderBottomColor = '#333333';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
           <div style={{
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${palette.colors.status.error}`,
-            color: palette.colors.status.error,
-            padding: palette.spacing.md,
-            borderRadius: palette.borderRadius.md,
-            marginBottom: palette.spacing.lg,
+            marginTop: palette.spacing.sm,
             fontSize: palette.typography.fontSize.sm,
+            color: formData.description.length >= 500 ? palette.colors.primary.cyan : palette.colors.text.tertiary,
           }}>
-            {error}
+            {formData.description.length} / 500 characters
           </div>
-        )}
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: palette.spacing.lg }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.base,
-              fontWeight: palette.typography.fontWeight.semibold,
-              marginBottom: palette.spacing.sm,
-            }}>
-              Project Title *
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              required
-              placeholder="e.g., AI-Powered Healthcare Platform"
-              style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
-              }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
-            />
-          </div>
+        <div>
+          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
+            Required Skills (comma-separated)
+          </label>
+          <input
+            type="text"
+            name="required_skills"
+            value={formData.required_skills}
+            onChange={handleChange}
+            style={inputStyle}
+            onFocus={(e) => {
+              e.target.style.borderBottomColor = palette.colors.primary.cyan;
+              e.target.style.boxShadow = `0 2px 0 ${palette.colors.primary.cyan}`;
+            }}
+            onBlur={(e) => {
+              e.target.style.borderBottomColor = '#333333';
+              e.target.style.boxShadow = 'none';
+            }}
+          />
+        </div>
 
-          <div style={{ marginBottom: palette.spacing.lg }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.base,
-              fontWeight: palette.typography.fontWeight.semibold,
-              marginBottom: palette.spacing.sm,
-            }}>
-              Project Description * (minimum 500 characters)
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              required
-              rows={12}
-              placeholder="Describe your startup vision, the problem you're solving, your target market, unique value proposition, and what kind of team members you're looking for..."
-              style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
-                resize: 'vertical',
-                fontFamily: palette.typography.fontFamily.primary,
-                lineHeight: palette.typography.lineHeight.relaxed,
-              }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
-            />
-            <div style={{
-              marginTop: palette.spacing.sm,
-              fontSize: palette.typography.fontSize.sm,
-              color: formData.description.length >= 500 
-                ? palette.colors.status.success 
-                : palette.colors.text.tertiary,
-            }}>
-              {formData.description.length} / 500 characters
-            </div>
-          </div>
-
-          <div style={{ marginBottom: palette.spacing.xl }}>
-            <label style={{
-              display: 'block',
-              color: palette.colors.text.primary,
-              fontSize: palette.typography.fontSize.base,
-              fontWeight: palette.typography.fontWeight.semibold,
-              marginBottom: palette.spacing.sm,
-            }}>
-              Required Skills (comma-separated)
-            </label>
-            <input
-              type="text"
-              name="required_skills"
-              value={formData.required_skills}
-              onChange={handleChange}
-              placeholder="e.g., Machine Learning, React, AWS, Product Management"
-              style={{
-                width: '100%',
-                padding: palette.spacing.md,
-                backgroundColor: palette.colors.background.primary,
-                border: `1px solid ${palette.colors.border.primary}`,
-                borderRadius: palette.borderRadius.md,
-                color: palette.colors.text.primary,
-                fontSize: palette.typography.fontSize.base,
-                outline: 'none',
-              }}
-              onFocus={(e) => e.target.style.borderColor = palette.colors.primary.cyan}
-              onBlur={(e) => e.target.style.borderColor = palette.colors.border.primary}
-            />
-          </div>
-
-          <div style={{
-            display: 'flex',
-            gap: palette.spacing.md,
-            justifyContent: 'flex-end',
-          }}>
-            <Button 
-              type="button" 
-              variant="secondary" 
-              onClick={() => navigate('/dashboard')}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              {loading ? 'Submitting...' : 'Submit for Review'}
-            </Button>
-          </div>
-        </form>
-      </div>
+        <div style={{ display: 'flex', gap: palette.spacing.md, justifyContent: 'flex-end' }}>
+          <Button type="button" variant="secondary" onClick={() => navigate('/dashboard')}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={loading}>
+            {loading ? 'Submitting...' : 'Submit for Review'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 };

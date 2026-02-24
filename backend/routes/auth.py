@@ -1,11 +1,15 @@
 from flask import Blueprint, request, jsonify
 from models.user import User
 from config import Config
+from services.vector_service import VectorService
 import jwt
+import threading
 from datetime import datetime, timedelta
 from functools import wraps
 
 auth_bp = Blueprint('auth', __name__)
+vector_service = VectorService()
+
 
 def token_required(f):
     @wraps(f)
@@ -34,6 +38,15 @@ def token_required(f):
     
     return decorated
 
+
+def _vectorize_new_user(user: dict):
+    try:
+        vector_service.upsert_user(user)
+        print(f"[Auth] Vectorized new user {user['_id']}")
+    except Exception as e:
+        print(f"[Auth] Warning: Failed to vectorize new user {user['_id']}: {e}")
+
+
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -51,7 +64,11 @@ def signup():
     
     if not user:
         return jsonify({"error": "User already exists"}), 409
-    
+
+    # Vectorize in background — signup doesn't wait for Pinecone
+    t = threading.Thread(target=_vectorize_new_user, args=(user,), daemon=True)
+    t.start()
+
     # Remove password from response
     if 'password' in user:
         del user['password']
@@ -67,6 +84,7 @@ def signup():
         "user": user,
         "token": token
     }), 201
+
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -98,6 +116,7 @@ def login():
         "user": user,
         "token": token
     }), 200
+
 
 @auth_bp.route('/me', methods=['GET'])
 @token_required
