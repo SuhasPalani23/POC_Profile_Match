@@ -12,6 +12,7 @@ const FounderDashboard = ({ user }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('projects');
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
   const [stats, setStats] = useState({
     projects: 0,
     matches: 0,
@@ -121,6 +122,10 @@ const FounderDashboard = ({ user }) => {
   const handleViewTeam = (project) => {
     setSelectedProject(project);
     setView('team');
+  };
+
+  const toggleDescription = (projectId) => {
+    setExpandedDescriptions((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
   };
 
   if (loading) {
@@ -235,47 +240,79 @@ const FounderDashboard = ({ user }) => {
             </div>
           ) : (
             <div style={{ display: 'grid', gap: palette.spacing.xl }}>
-              {projects.map((project) => (
-                <div
-                  key={project._id}
-                  className="surface-card"
-                  style={{ borderRadius: palette.borderRadius.lg, padding: palette.spacing.xl }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: palette.spacing.md }}>
-                    <span className="mono-label" style={{ color: project.live ? palette.colors.primary.cyan : palette.colors.text.tertiary }}>
-                      {project.live ? 'LIVE' : 'PENDING REVIEW'}
-                    </span>
-                  </div>
+              {projects.map((project) => {
+                const isExpanded = expandedDescriptions[project._id];
+                const isLong = project.description.length > 300;
 
-                  <h3 style={{
-                    fontFamily: palette.typography.fontFamily.display,
-                    fontSize: palette.typography.fontSize['2xl'],
-                    marginBottom: palette.spacing.md,
-                  }}>
-                    {project.title}
-                  </h3>
-                  <p style={{
-                    color: palette.colors.text.secondary,
-                    fontSize: palette.typography.fontSize.sm,
-                    lineHeight: palette.typography.lineHeight.relaxed,
-                    marginBottom: palette.spacing.lg,
-                  }}>
-                    {project.description.substring(0, 160)}...
-                  </p>
+                return (
+                  <div
+                    key={project._id}
+                    className="surface-card"
+                    style={{ borderRadius: palette.borderRadius.lg, padding: palette.spacing.xl }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: palette.spacing.md }}>
+                      <span className="mono-label" style={{ color: project.live ? palette.colors.primary.cyan : palette.colors.text.tertiary }}>
+                        {project.live ? 'LIVE' : 'PENDING REVIEW'}
+                      </span>
+                    </div>
 
-                  <div style={{ display: 'flex', gap: palette.spacing.md, flexWrap: 'wrap' }}>
-                    {project.live ? (
-                      <>
-                        <Button onClick={() => navigate(`/matches/${project._id}`)}>View Matches</Button>
-                        <Button variant="outline" onClick={() => handleViewTeam(project)}>View Team</Button>
-                        <Button variant="outline" onClick={() => navigate(`/chat/${project._id}`)}>Team Chat</Button>
-                      </>
-                    ) : (
-                      <Button variant="secondary" disabled>Under Review</Button>
+                    <h3 style={{
+                      fontFamily: palette.typography.fontFamily.display,
+                      fontSize: palette.typography.fontSize['2xl'],
+                      marginBottom: palette.spacing.md,
+                    }}>
+                      {project.title}
+                    </h3>
+
+                    <p style={{
+                      color: palette.colors.text.secondary,
+                      fontSize: palette.typography.fontSize.sm,
+                      lineHeight: palette.typography.lineHeight.relaxed,
+                      marginBottom: palette.spacing.sm,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {isLong && !isExpanded
+                        ? project.description.substring(0, 300) + '…'
+                        : project.description}
+                    </p>
+
+                    {isLong && (
+                      <button
+                        type="button"
+                        onClick={() => toggleDescription(project._id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: palette.colors.primary.cyan,
+                          fontFamily: palette.typography.fontFamily.primary,
+                          fontSize: palette.typography.fontSize.xs,
+                          letterSpacing: '0.12em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          padding: 0,
+                          marginBottom: palette.spacing.lg,
+                        }}
+                      >
+                        {isExpanded ? 'Show less ↑' : 'Read more ↓'}
+                      </button>
                     )}
+
+                    {!isLong && <div style={{ marginBottom: palette.spacing.lg }} />}
+
+                    <div style={{ display: 'flex', gap: palette.spacing.md, flexWrap: 'wrap' }}>
+                      {project.live ? (
+                        <>
+                          <Button onClick={() => navigate(`/matches/${project._id}`)}>View Matches</Button>
+                          <Button variant="outline" onClick={() => handleViewTeam(project)}>View Team</Button>
+                          <Button variant="outline" onClick={() => navigate(`/chat/${project._id}`)}>Team Chat</Button>
+                        </>
+                      ) : (
+                        <Button variant="secondary" disabled>Under Review</Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

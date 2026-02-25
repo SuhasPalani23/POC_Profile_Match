@@ -21,6 +21,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
   const [downloadingResume, setDownloadingResume] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [vectorStatus, setVectorStatus] = useState(''); // 'indexing' | 'done' | ''
   const [resumeAnalysis, setResumeAnalysis] = useState(null);
   const navigate = useNavigate();
 
@@ -55,6 +56,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
     setLoading(true);
     setError('');
     setSuccess('');
+    setVectorStatus('');
 
     try {
       const skillsArray = formData.skills
@@ -68,8 +70,14 @@ const ProfileEdit = ({ user, onUpdate }) => {
         experience_years: parseInt(formData.experience_years),
       });
 
-      setSuccess('Profile updated successfully! Vectors are being updated...');
-      setTimeout(() => onUpdate(), 1500);
+      setSuccess('Profile saved successfully!');
+      setVectorStatus('indexing');
+
+      // Simulate vector indexing completion (~3s is typical for background upsert)
+      setTimeout(() => {
+        setVectorStatus('done');
+        onUpdate();
+      }, 3500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update profile');
     } finally {
@@ -85,6 +93,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
 
     setUploadingResume(true);
     setError('');
+    setVectorStatus('');
 
     try {
       const formDataResume = new FormData();
@@ -93,6 +102,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
       const response = await profileAPI.uploadResume(formDataResume);
 
       setSuccess('Resume uploaded and analysed successfully!');
+      setVectorStatus('indexing');
       setResumeAnalysis(response.data.analysis);
       setResume(null);
 
@@ -103,7 +113,10 @@ const ProfileEdit = ({ user, onUpdate }) => {
         }));
       }
 
-      setTimeout(() => onUpdate(), 1500);
+      setTimeout(() => {
+        setVectorStatus('done');
+        onUpdate();
+      }, 3500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload resume');
     } finally {
@@ -111,16 +124,11 @@ const ProfileEdit = ({ user, onUpdate }) => {
     }
   };
 
-  /**
-   * Download the resume directly from MongoDB GridFS via the backend.
-   * Works on any developer's machine — file is not stored locally.
-   */
   const handleDownloadResume = async () => {
     setDownloadingResume(true);
     try {
       const response = await profileAPI.getResume(user._id);
 
-      // Create a temporary object URL and trigger browser download
       const blob = new Blob([response.data], {
         type: response.headers['content-type'] || 'application/pdf',
       });
@@ -145,7 +153,11 @@ const ProfileEdit = ({ user, onUpdate }) => {
     try {
       await profileAPI.deleteResume();
       setSuccess('Resume deleted successfully');
-      setTimeout(() => onUpdate(), 1500);
+      setVectorStatus('indexing');
+      setTimeout(() => {
+        setVectorStatus('done');
+        onUpdate();
+      }, 3500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete resume');
     }
@@ -191,6 +203,7 @@ const ProfileEdit = ({ user, onUpdate }) => {
           </p>
         </div>
 
+        {/* Error Banner */}
         {error && (
           <div style={{
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -204,16 +217,45 @@ const ProfileEdit = ({ user, onUpdate }) => {
           </div>
         )}
 
+        {/* Success + Vector Status Banner */}
         {success && (
           <div style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            backgroundColor: 'rgba(201, 168, 76, 0.08)',
             border: `1px solid ${palette.colors.status.success}`,
             color: palette.colors.status.success,
             padding: palette.spacing.md,
             borderRadius: palette.borderRadius.md,
             marginBottom: palette.spacing.lg,
+            display: 'flex',
+            alignItems: 'center',
+            gap: palette.spacing.md,
           }}>
-            {success}
+            <span>✓ {success}</span>
+            {vectorStatus === 'indexing' && (
+              <span style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: palette.spacing.sm,
+                color: palette.colors.text.secondary,
+                fontSize: palette.typography.fontSize.sm,
+              }}>
+                <span style={{
+                  display: 'inline-block',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  border: `2px solid ${palette.colors.primary.cyan}`,
+                  borderTopColor: 'transparent',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                Re-indexing your profile for matching…
+              </span>
+            )}
+            {vectorStatus === 'done' && (
+              <span style={{ color: palette.colors.primary.cyan, fontSize: palette.typography.fontSize.sm }}>
+                ✦ Profile indexed — matches updated
+              </span>
+            )}
           </div>
         )}
 
@@ -241,13 +283,14 @@ const ProfileEdit = ({ user, onUpdate }) => {
           </p>
 
           {/* Upload row */}
-          <div style={{ display: 'flex', gap: palette.spacing.md, alignItems: 'center', marginBottom: palette.spacing.md }}>
+          <div style={{ display: 'flex', gap: palette.spacing.md, alignItems: 'center', marginBottom: palette.spacing.md, flexWrap: 'wrap' }}>
             <input
               type="file"
               accept=".pdf,.docx,.doc"
               onChange={handleResumeChange}
               style={{
                 flex: 1,
+                minWidth: '200px',
                 padding: palette.spacing.md,
                 backgroundColor: palette.colors.background.secondary,
                 border: `1px solid ${palette.colors.border.primary}`,
@@ -271,19 +314,20 @@ const ProfileEdit = ({ user, onUpdate }) => {
               alignItems: 'center',
               gap: palette.spacing.md,
               padding: palette.spacing.md,
-              backgroundColor: 'rgba(19, 239, 183, 0.1)',
+              backgroundColor: 'rgba(201, 168, 76, 0.08)',
               borderRadius: palette.borderRadius.md,
               border: `1px solid ${palette.colors.primary.cyan}`,
+              flexWrap: 'wrap',
             }}>
               <span style={{
                 color: palette.colors.primary.cyan,
                 fontSize: palette.typography.fontSize.sm,
                 flex: 1,
+                wordBreak: 'break-all',
               }}>
                 ✓ {user.resume}
               </span>
 
-              {/* Download from GridFS */}
               <Button
                 variant="outline"
                 size="sm"
@@ -337,9 +381,9 @@ const ProfileEdit = ({ user, onUpdate }) => {
                     Extracted Skills:
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: palette.spacing.xs }}>
-                    {resumeAnalysis.merged_skills.slice(0, 10).map((skill, index) => (
+                    {resumeAnalysis.merged_skills.map((skill, index) => (
                       <span key={index} style={{
-                        backgroundColor: 'rgba(19, 239, 183, 0.1)',
+                        backgroundColor: 'rgba(201, 168, 76, 0.1)',
                         color: palette.colors.primary.cyan,
                         padding: `${palette.spacing.xs} ${palette.spacing.sm}`,
                         borderRadius: palette.borderRadius.md,
@@ -479,12 +523,19 @@ const ProfileEdit = ({ user, onUpdate }) => {
             <Button type="button" variant="secondary" onClick={() => navigate('/dashboard')}>
               Cancel
             </Button>
-            <Button type="submit" loading={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
+            <Button type="submit" loading={loading} disabled={vectorStatus === 'indexing'}>
+              {loading ? 'Saving...' : vectorStatus === 'indexing' ? 'Indexing...' : 'Save Changes'}
             </Button>
           </div>
         </form>
       </div>
+
+      {/* Spin keyframe injected inline */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

@@ -107,9 +107,28 @@ const UserDashboard = ({ user }) => {
             <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Email</p>
             <p>{user.email}</p>
           </div>
+          {user.professional_title && (
+            <div>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Title</p>
+              <p>{user.professional_title}</p>
+            </div>
+          )}
+          {user.location && (
+            <div>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Location</p>
+              <p style={{ color: palette.colors.text.secondary }}>{user.location}</p>
+            </div>
+          )}
+          {user.experience_years > 0 && (
+            <div>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Experience</p>
+              <p style={{ color: palette.colors.text.secondary }}>{user.experience_years} years</p>
+            </div>
+          )}
           {user.bio && (
             <div>
               <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>Bio</p>
+              {/* Full bio — no truncation */}
               <p style={{ color: palette.colors.text.secondary, lineHeight: palette.typography.lineHeight.relaxed }}>
                 {user.bio}
               </p>
@@ -117,7 +136,8 @@ const UserDashboard = ({ user }) => {
           )}
           {user.skills && user.skills.length > 0 && (
             <div>
-              <p className="mono-label" style={{ marginBottom: palette.spacing.sm }}>Skills</p>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.sm }}>Skills ({user.skills.length})</p>
+              {/* All skills shown */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: palette.spacing.sm }}>
                 {user.skills.map((skill, index) => (
                   <span
@@ -134,6 +154,19 @@ const UserDashboard = ({ user }) => {
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+          {user.linkedin && (
+            <div>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>LinkedIn</p>
+              <a
+                href={user.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: palette.colors.primary.cyan, fontSize: palette.typography.fontSize.sm }}
+              >
+                {user.linkedin}
+              </a>
             </div>
           )}
         </div>

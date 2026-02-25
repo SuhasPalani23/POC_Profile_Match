@@ -12,7 +12,7 @@ class MatchingService:
         self.gemini_service = GeminiService()
 
     def find_matches(self, project: dict, founder_id: str, top_k: int = 10) -> list:
-        """Find and rank top matches for a project using Pinecone + Gemini."""
+        """Find and rank top matches for a project using Pinecone + Gemini ATS scoring."""
 
         # Step 1: Gemini analyses the project to surface required skills/roles
         project_analysis = self.gemini_service.analyze_project_needs(project["description"])
@@ -32,6 +32,7 @@ class MatchingService:
             return []
 
         # Step 3: Hydrate full user documents from MongoDB
+        # Include resume_text and experience_years so Gemini ATS scoring is accurate
         candidates = []
         for result in vector_results:
             user = User.find_by_id(result["user_id"])
@@ -42,8 +43,14 @@ class MatchingService:
         if not candidates:
             return []
 
-        # Step 4: Gemini re-ranks the shortlist for quality
-        rankings = self.gemini_service.rank_candidates(project, candidates[:10])
+        # Step 4: Gemini ATS-style re-ranking
+        # Pass project_analysis so Gemini uses the pre-extracted required skills/roles
+        # rather than re-deriving them, keeping scoring consistent with the search query
+        rankings = self.gemini_service.rank_candidates(
+            project=project,
+            candidates=candidates[:10],
+            project_analysis=project_analysis,
+        )
 
         # Step 5: Combine ranking metadata with user data
         matches = []
