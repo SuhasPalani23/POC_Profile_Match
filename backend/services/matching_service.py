@@ -43,6 +43,12 @@ class MatchingService:
         if not candidates:
             return []
 
+        # Build a lookup map: candidate_index (as sent to Gemini) -> candidate dict.
+        # This is keyed by the positional index we pass in the prompt so that even if
+        # Gemini returns indices out of order, skips some, or repeats one, we never
+        # silently fall back to candidate 0.
+        candidate_map = {i: candidate for i, candidate in enumerate(candidates[:10])}
+
         # Step 4: Gemini ATS-style re-ranking
         # Pass project_analysis so Gemini uses the pre-extracted required skills/roles
         # rather than re-deriving them, keeping scoring consistent with the search query
@@ -52,31 +58,55 @@ class MatchingService:
             project_analysis=project_analysis,
         )
 
-        # Step 5: Combine ranking metadata with user data
+        # Step 5: Combine ranking metadata with user data.
+        # Use the candidate_map for safe lookups — skip any ranking whose index is
+        # out of range rather than silently returning the wrong candidate.
         matches = []
-        for ranking in rankings[:5]:  # Top 5 final matches
-            idx = ranking.get("candidate_index", 0)
-            if idx < len(candidates):
-                candidate = candidates[idx]
-                matches.append(
-                    {
-                        "user_id": candidate["_id"],
-                        "name": candidate.get("name", ""),
-                        "email": candidate.get("email", ""),
-                        "role": candidate.get("role", "user"),
-                        "is_founder": candidate.get("role", "user") == "founder",
-                        "professional_title": candidate.get("professional_title", ""),
-                        "skills": candidate.get("skills", []),
-                        "bio": candidate.get("bio", ""),
-                        "linkedin": candidate.get("linkedin", ""),
-                        "resume": candidate.get("resume", ""),
-                        "experience_years": candidate.get("experience_years", 0),
-                        "match_percentage": ranking.get("match_percentage", 0),
-                        "reasoning": ranking.get("reasoning", ""),
-                        "strengths": ranking.get("strengths", []),
-                        "concerns": ranking.get("concerns", []),
-                        "vector_similarity": candidate.get("vector_similarity", 0),
-                    }
+        seen_user_ids = set()  # Guard against duplicate entries if Gemini repeats an index
+
+        for ranking in rankings:
+            idx = ranking.get("candidate_index")
+
+            # Validate index: must be an integer and present in our map
+            if not isinstance(idx, int) or idx not in candidate_map:
+                print(
+                    f"[MatchingService] Skipping ranking with invalid candidate_index: {idx!r} "
+                    f"(valid range: 0–{len(candidate_map) - 1})"
                 )
+                continue
+
+            candidate = candidate_map[idx]
+            user_id = candidate["_id"]
+
+            # Skip duplicates
+            if user_id in seen_user_ids:
+                print(f"[MatchingService] Skipping duplicate candidate_index {idx} (user_id: {user_id})")
+                continue
+
+            seen_user_ids.add(user_id)
+
+            matches.append(
+                {
+                    "user_id": user_id,
+                    "name": candidate.get("name", ""),
+                    "email": candidate.get("email", ""),
+                    "role": candidate.get("role", "user"),
+                    "is_founder": candidate.get("role", "user") == "founder",
+                    "professional_title": candidate.get("professional_title", ""),
+                    "skills": candidate.get("skills", []),
+                    "bio": candidate.get("bio", ""),
+                    "linkedin": candidate.get("linkedin", ""),
+                    "resume": candidate.get("resume", ""),
+                    "experience_years": candidate.get("experience_years", 0),
+                    "match_percentage": ranking.get("match_percentage", 0),
+                    "reasoning": ranking.get("reasoning", ""),
+                    "strengths": ranking.get("strengths", []),
+                    "concerns": ranking.get("concerns", []),
+                    "vector_similarity": candidate.get("vector_similarity", 0),
+                }
+            )
+
+            if len(matches) >= 5:  # Top 5 final matches
+                break
 
         return matches

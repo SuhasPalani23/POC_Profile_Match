@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getToken } from './auth';
 
@@ -9,162 +9,136 @@ export const useWebSocket = () => {
   const [connected, setConnected] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
+  // Stable ref so callbacks inside useEffect never capture stale state
+  const notificationTimers = useRef({});
+
+  const addNotification = useCallback((notification) => {
+    // Generate id synchronously BEFORE the setTimeout so the closure captures it correctly
+    const id = Date.now() + Math.random();
+    const fullNotification = { ...notification, id };
+
+    setNotifications(prev => [...prev, fullNotification]);
+
+    // id is now captured correctly in this closure
+    const timer = setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+      delete notificationTimers.current[id];
+    }, 5000);
+
+    notificationTimers.current[id] = timer;
+  }, []);
+
   useEffect(() => {
     const token = getToken();
-    
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
-    // Initialize socket connection
-    socketRef.current = io(SOCKET_URL, {
-      auth: {
-        token: token
-      },
-      transports: ['websocket', 'polling']
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
     });
+    socketRef.current = socket;
 
-    // Connection events
-    socketRef.current.on('connect', () => {
+    socket.on('connect', () => {
       console.log('WebSocket connected');
       setConnected(true);
     });
 
-    socketRef.current.on('connected', (data) => {
+    socket.on('connected', (data) => {
       console.log('Connected to server:', data);
     });
 
-    socketRef.current.on('disconnect', () => {
+    socket.on('disconnect', () => {
       console.log('WebSocket disconnected');
       setConnected(false);
     });
 
-    // Profile events
-    socketRef.current.on('profile_updated', (data) => {
-      console.log('Profile updated:', data);
-      addNotification({
-        type: 'success',
-        message: 'Profile updated successfully',
-        data: data
-      });
+    socket.on('profile_updated', (data) => {
+      addNotification({ type: 'success', message: 'Profile updated successfully', data });
     });
 
-    socketRef.current.on('vector_update', (data) => {
-      console.log('Vector update:', data);
+    socket.on('vector_update', (data) => {
       if (data.status === 'completed') {
-        addNotification({
-          type: 'success',
-          message: 'Your profile has been re-indexed for better matching'
-        });
+        addNotification({ type: 'success', message: 'Your profile has been re-indexed for better matching' });
       }
     });
 
-    // Project events
-    socketRef.current.on('project_status_update', (data) => {
-      console.log('Project status update:', data);
-      addNotification({
-        type: 'info',
-        message: `Project status: ${data.status}`,
-        data: data
-      });
+    socket.on('project_status_update', (data) => {
+      addNotification({ type: 'info', message: `Project status: ${data.status}`, data });
     });
 
-    // Match events
-    socketRef.current.on('new_match', (data) => {
-      console.log('New match found:', data);
+    socket.on('new_match', (data) => {
+      addNotification({ type: 'success', message: 'New match found!', data });
+    });
+
+    socket.on('collaboration_request', (data) => {
+      addNotification({ type: 'info', message: 'New collaboration request received', data });
+    });
+
+    socket.on('ats_score_updated', (data) => {
+      addNotification({ type: 'info', message: 'ATS score calculated', data });
+    });
+
+    socket.on('request_accepted', (data) => {
       addNotification({
         type: 'success',
-        message: 'New match found!',
-        data: data
-      });
-    });
-
-    socketRef.current.on('collaboration_request', (data) => {
-      console.log('Collaboration request:', data);
-      addNotification({
-        type: 'info',
-        message: 'New collaboration request received',
-        data: data
-      });
-    });
-
-    socketRef.current.on('ats_score_updated', (data) => {
-      console.log('ATS score updated:', data);
-      addNotification({
-        type: 'info',
-        message: 'ATS score calculated',
-        data: data
-      });
-    });
-
-    // Collaboration events
-    socketRef.current.on('request_accepted', (data) => {
-      console.log('Request accepted:', data);
-      addNotification({
-        type: 'success',
-        message: data.status === 'accepted' 
-          ? `${data.candidate_name || 'Candidate'} accepted your request for ${data.project_title}!`
+        message: data.candidate_name
+          ? `${data.candidate_name} accepted your request for ${data.project_title}!`
           : `You joined ${data.project_title}!`,
-        data: data
+        data,
       });
     });
 
-    socketRef.current.on('request_rejected', (data) => {
-      console.log('Request rejected:', data);
+    socket.on('request_rejected', (data) => {
       addNotification({
         type: 'info',
         message: `${data.candidate_name} declined your request for ${data.project_title}`,
-        data: data
+        data,
       });
     });
 
-    socketRef.current.on('member_left', (data) => {
-      console.log('Member left:', data);
-      addNotification({
-        type: 'info',
-        message: `${data.member_name} left ${data.project_title}`,
-        data: data
-      });
+    socket.on('member_left', (data) => {
+      addNotification({ type: 'info', message: `${data.member_name} left ${data.project_title}`, data });
     });
 
-    // Chat events
-    socketRef.current.on('new_message', (data) => {
-      console.log('New message:', data);
-      // Message is handled in LiveChat component
-    });
+    // Chat messages are handled in LiveChat — no notification needed here
+    socket.on('new_message', () => {});
 
-    // Cleanup on unmount
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      socket.disconnect();
+      // Clear all pending notification timers on unmount
+      Object.values(notificationTimers.current).forEach(clearTimeout);
+      notificationTimers.current = {};
     };
+  }, [addNotification]);
+
+  // --- Project room helpers ---
+  // These use the socket ref directly so they always have the live socket,
+  // and we gate on socket.connected (the socket's own property) rather than
+  // the React `connected` state, which can be stale.
+  const joinProject = useCallback((projectId) => {
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit('join_project', { project_id: projectId, token: getToken() });
+    } else if (socket) {
+      // Socket exists but not yet connected — wait for the connect event
+      socket.once('connect', () => {
+        socket.emit('join_project', { project_id: projectId, token: getToken() });
+      });
+    }
   }, []);
 
-  const addNotification = (notification) => {
-    setNotifications(prev => [...prev, { ...notification, id: Date.now() }]);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
-    }, 5000);
-  };
-
-  const joinProject = (projectId) => {
-    if (socketRef.current && connected) {
-      socketRef.current.emit('join_project', { project_id: projectId });
+  const leaveProject = useCallback((projectId) => {
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit('leave_project', { project_id: projectId, token: getToken() });
     }
-  };
+  }, []);
 
-  const leaveProject = (projectId) => {
-    if (socketRef.current && connected) {
-      socketRef.current.emit('leave_project', { project_id: projectId });
-    }
-  };
-
-  const clearNotifications = () => {
+  const clearNotifications = useCallback(() => {
     setNotifications([]);
-  };
+    Object.values(notificationTimers.current).forEach(clearTimeout);
+    notificationTimers.current = {};
+  }, []);
 
   return {
     socket: socketRef.current,
@@ -172,6 +146,6 @@ export const useWebSocket = () => {
     notifications,
     joinProject,
     leaveProject,
-    clearNotifications
+    clearNotifications,
   };
 };

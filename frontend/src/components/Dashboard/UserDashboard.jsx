@@ -78,7 +78,7 @@ const UserDashboard = ({ user }) => {
             padding: palette.spacing['2xl'],
             textAlign: 'center',
           }}>
-            <p style={{ fontSize: '2.5rem', marginBottom: palette.spacing.md }}>🚀</p>
+            <p style={{ fontSize: '2.5rem', marginBottom: palette.spacing.md }}></p>
             <p style={{ color: palette.colors.text.secondary, marginBottom: palette.spacing.md }}>
               You haven't joined any teams yet. Accept a collaboration request to get started.
             </p>

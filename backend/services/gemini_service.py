@@ -82,8 +82,8 @@ Respond ONLY in valid JSON format:
         ATS-style scoring of candidates against a project.
 
         match_percentage is the ATS score — it reflects genuine fit using the
-        full candidate profile: listed skills, bio, experience years, AND
-        resume text (if uploaded). This is what founders see on the match cards.
+        full candidate profile: listed skills, bio, experience years, AND the
+        complete resume text if uploaded (no truncation).
 
         project_analysis: pre-extracted required_skills/roles from analyze_project_needs().
         Passing it in keeps scoring consistent with the Pinecone search query and
@@ -103,13 +103,12 @@ Pre-analyzed Project Requirements:
 - Key Competencies: {', '.join(key_competencies) if key_competencies else 'Derive from description'}
 """
 
-        # Build candidate blocks — include resume_text if present
+        # Build candidate blocks — include full resume text with no truncation
         candidate_blocks = ""
         for i, candidate in enumerate(candidates):
             resume_section = ""
             if candidate.get("resume_text"):
-                # Truncate to keep prompt size manageable — 1500 chars per candidate is enough
-                resume_section = f"\nResume Content:\n{candidate['resume_text'][:1500]}"
+                resume_section = f"\nResume Content:\n{candidate['resume_text']}"
 
             candidate_blocks += f"""
 Candidate {i}:
@@ -162,6 +161,8 @@ Respond ONLY in valid JSON:
 }}
 
 Sort rankings by match_percentage descending.
+IMPORTANT: Every candidate_index must be a valid integer from 0 to {len(candidates) - 1}.
+           Include every candidate exactly once.
 """
 
         try:

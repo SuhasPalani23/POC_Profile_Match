@@ -73,7 +73,6 @@ const ProfileEdit = ({ user, onUpdate }) => {
       setSuccess('Profile saved successfully!');
       setVectorStatus('indexing');
 
-      // Simulate vector indexing completion (~3s is typical for background upsert)
       setTimeout(() => {
         setVectorStatus('done');
         onUpdate();
@@ -126,9 +125,11 @@ const ProfileEdit = ({ user, onUpdate }) => {
 
   const handleDownloadResume = async () => {
     setDownloadingResume(true);
+    setError('');
     try {
       const response = await profileAPI.getResume(user._id);
 
+      // Happy path — response.data is a Blob
       const blob = new Blob([response.data], {
         type: response.headers['content-type'] || 'application/pdf',
       });
@@ -141,7 +142,21 @@ const ProfileEdit = ({ user, onUpdate }) => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setError('Failed to download resume');
+      // When the request fails with responseType:'blob', the error response body
+      // is also a Blob. We must read it as text first, then parse as JSON to get
+      // a human-readable error message.
+      const responseData = err.response?.data;
+      if (responseData instanceof Blob) {
+        try {
+          const text = await responseData.text();
+          const json = JSON.parse(text);
+          setError(json.error || 'Failed to download resume');
+        } catch {
+          setError('Failed to download resume');
+        }
+      } else {
+        setError(err.response?.data?.error || 'Failed to download resume');
+      }
     } finally {
       setDownloadingResume(false);
     }
