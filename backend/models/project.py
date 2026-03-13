@@ -85,6 +85,44 @@ class Project:
         return result.modified_count > 0
 
     @staticmethod
+    def clear_cached_matches(project_id):
+        result = projects_collection.update_one(
+            {"_id": ObjectId(project_id)},
+            {"$set": {
+                "cached_matches": None,
+                "matches_cached_at": None,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return result.modified_count > 0
+
+    @staticmethod
+    def clear_all_cached_matches():
+        result = projects_collection.update_many(
+            {},
+            {"$set": {
+                "cached_matches": None,
+                "matches_cached_at": None,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return result.modified_count
+
+    @staticmethod
+    def update_project(project_id, update_fields):
+        should_reset_cache = any(field in update_fields for field in ("description", "required_skills", "title"))
+        update_fields["updated_at"] = datetime.utcnow()
+        if should_reset_cache:
+            update_fields["cached_matches"] = None
+            update_fields["matches_cached_at"] = None
+
+        result = projects_collection.update_one(
+            {"_id": ObjectId(project_id)},
+            {"$set": update_fields}
+        )
+        return result.modified_count > 0
+
+    @staticmethod
     def get_all_live_projects():
         projects = list(projects_collection.find({"live": True}))
         for project in projects:

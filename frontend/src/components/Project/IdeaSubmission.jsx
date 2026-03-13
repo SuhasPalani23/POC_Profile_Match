@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { projectAPI } from '../../services/api';
 import Button from '../Common/Button';
 import LoadingAnimation from '../Common/LoadingAnimation';
+import FormField from '../Common/primitives/FormField';
 import palette from '../../palette';
 
 const IdeaSubmission = ({ user, onSubmit }) => {
@@ -120,10 +121,7 @@ const IdeaSubmission = ({ user, onSubmit }) => {
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: palette.spacing.xl }}>
-        <div>
-          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
-            Project Title *
-          </label>
+        <FormField label="Project Title *">
           <input
             type="text"
             name="title"
@@ -140,12 +138,12 @@ const IdeaSubmission = ({ user, onSubmit }) => {
               e.target.style.boxShadow = 'none';
             }}
           />
-        </div>
+        </FormField>
 
-        <div>
-          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
-            Project Description * (minimum 500 characters)
-          </label>
+        <FormField
+          label="Project Description * (minimum 500 characters)"
+          hint={`${formData.description.length} / 500 characters`}
+        >
           <textarea
             name="description"
             value={formData.description}
@@ -162,19 +160,9 @@ const IdeaSubmission = ({ user, onSubmit }) => {
               e.target.style.boxShadow = 'none';
             }}
           />
-          <div style={{
-            marginTop: palette.spacing.sm,
-            fontSize: palette.typography.fontSize.sm,
-            color: formData.description.length >= 500 ? palette.colors.primary.cyan : palette.colors.text.tertiary,
-          }}>
-            {formData.description.length} / 500 characters
-          </div>
-        </div>
+        </FormField>
 
-        <div>
-          <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
-            Required Skills (comma-separated)
-          </label>
+        <FormField label="Required Skills (comma-separated)">
           <input
             type="text"
             name="required_skills"
@@ -190,7 +178,7 @@ const IdeaSubmission = ({ user, onSubmit }) => {
               e.target.style.boxShadow = 'none';
             }}
           />
-        </div>
+        </FormField>
 
         <div style={{ display: 'flex', gap: palette.spacing.md, justifyContent: 'flex-end' }}>
           <Button type="button" variant="secondary" onClick={() => navigate('/dashboard')}>

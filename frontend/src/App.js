@@ -20,7 +20,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loaderText, setLoaderText] = useState('');
-  const { connected, notifications, clearNotifications } = useWebSocket();
+  const [localToasts, setLocalToasts] = useState([]);
+  const { notifications } = useWebSocket();
 
   useEffect(() => { checkAuth(); }, []);
 
@@ -33,6 +34,24 @@ function App() {
       if (index >= text.length) clearInterval(interval);
     }, 60);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event) => {
+      const detail = event.detail || {};
+      const toast = {
+        id: Date.now() + Math.random(),
+        type: detail.type || 'info',
+        message: detail.message || 'Notification',
+        data: detail.data || null,
+      };
+      setLocalToasts((prev) => [...prev, toast]);
+      setTimeout(() => {
+        setLocalToasts((prev) => prev.filter((item) => item.id !== toast.id));
+      }, 4000);
+    };
+    window.addEventListener('app-toast', handler);
+    return () => window.removeEventListener('app-toast', handler);
   }, []);
 
   const checkAuth = async () => {
@@ -69,7 +88,12 @@ function App() {
       <div className="app-shell" style={{ minHeight: '100vh', backgroundColor: palette.colors.background.primary }}>
         {user && <Navbar user={user} onLogout={handleLogout} />}
         
-        <NotificationCenter notifications={notifications} onClose={() => {}} />
+        <NotificationCenter
+          notifications={[...notifications, ...localToasts]}
+          onClose={(id) => {
+            setLocalToasts((prev) => prev.filter((item) => item.id !== id));
+          }}
+        />
         
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login onLogin={checkAuth} />} />

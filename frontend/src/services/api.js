@@ -17,6 +17,32 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+api.interceptors.response.use(
+  (response) => {
+    const payload = response?.data;
+    if (payload && typeof payload.ok === "boolean" && payload.details) {
+      response.data = payload.details;
+      response.data._meta = {
+        ok: payload.ok,
+        code: payload.code,
+        message: payload.message,
+      };
+    }
+    return response;
+  },
+  (error) => {
+    const payload = error?.response?.data;
+    if (payload && typeof payload.ok === "boolean" && payload.ok === false) {
+      error.response.data = {
+        error: payload.message,
+        code: payload.code,
+        details: payload.details || {},
+      };
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authAPI = {
   signup: (data) => api.post("/auth/signup", data),
   login: (data) => api.post("/auth/login", data),
@@ -33,6 +59,7 @@ export const projectAPI = {
 export const matchingAPI = {
   getMatches: (projectId) => api.get(`/matching/${projectId}`),
   sendRequest: (data) => api.post("/matching/send-request", data),
+  submitFeedback: (data) => api.post("/matching/feedback", data),
 };
 
 export const profileAPI = {
@@ -72,13 +99,16 @@ export const collaborationAPI = {
       collaboration_id: collaborationId,
     }),
   getMyProjects: () => api.get("/collaboration/my-projects"),
+  withdrawRequest: (collaborationId) =>
+    api.post(`/collaboration/withdraw/${collaborationId}`),
+  getRequestHistory: () => api.get("/collaboration/history"),
 };
 
 export const chatAPI = {
   sendMessage: (data) => api.post("/chat/send", data),
-  getMessages: (projectId) => api.get(`/chat/messages/${projectId}`),
-  getDMMessages: (projectId, otherUserId) =>
-    api.get(`/chat/dm/${projectId}/${otherUserId}`),
+  getMessages: (projectId, params = {}) => api.get(`/chat/messages/${projectId}`, { params }),
+  getDMMessages: (projectId, otherUserId, params = {}) =>
+    api.get(`/chat/dm/${projectId}/${otherUserId}`, { params }),
   markAsRead: (messageId) => api.post(`/chat/mark-read/${messageId}`),
   getUnreadCount: (projectId) => api.get(`/chat/unread-count/${projectId}`),
 };

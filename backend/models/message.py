@@ -26,11 +26,12 @@ class Message:
         return message
     
     @staticmethod
-    def get_project_messages(project_id, limit=100):
+    def get_project_messages(project_id, limit=100, before=None):
         """Get group messages for a project"""
-        messages = list(messages_collection.find(
-            {"project_id": project_id, "dm_recipient_id": None}
-        ).sort("created_at", -1).limit(limit))
+        query = {"project_id": project_id, "dm_recipient_id": None}
+        if before:
+            query["created_at"] = {"$lt": before}
+        messages = list(messages_collection.find(query).sort("created_at", -1).limit(limit))
         
         messages.reverse()
         
@@ -39,15 +40,18 @@ class Message:
         return messages
     
     @staticmethod
-    def get_dm_messages(project_id, user_a, user_b, limit=100):
+    def get_dm_messages(project_id, user_a, user_b, limit=100, before=None):
         """Get DM messages between two users in a project context"""
-        messages = list(messages_collection.find({
+        query = {
             "project_id": project_id,
             "$or": [
                 {"sender_id": user_a, "dm_recipient_id": user_b},
                 {"sender_id": user_b, "dm_recipient_id": user_a},
             ]
-        }).sort("created_at", -1).limit(limit))
+        }
+        if before:
+            query["created_at"] = {"$lt": before}
+        messages = list(messages_collection.find(query).sort("created_at", -1).limit(limit))
         
         messages.reverse()
         
@@ -72,6 +76,24 @@ class Message:
             "read_by": {"$ne": user_id}
         })
         return count
+
+    @staticmethod
+    def get_unread_breakdown(project_id, user_id):
+        group_count = Message.get_unread_count(project_id, user_id)
+
+        dm_pipeline = [
+            {
+                "$match": {
+                    "project_id": project_id,
+                    "dm_recipient_id": user_id,
+                    "sender_id": {"$ne": user_id},
+                    "read_by": {"$ne": user_id}
+                }
+            },
+            {"$group": {"_id": "$sender_id", "count": {"$sum": 1}}}
+        ]
+        dm_counts = {row["_id"]: row["count"] for row in messages_collection.aggregate(dm_pipeline)}
+        return {"group": group_count, "dms": dm_counts}
     
     @staticmethod
     def delete_message(message_id):

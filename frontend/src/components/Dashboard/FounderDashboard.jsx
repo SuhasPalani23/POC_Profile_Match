@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { projectAPI, matchingAPI, collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
 import TeamView from '../Collaboration/TeamView';
+import MetricTile from '../Common/primitives/MetricTile';
 import palette from '../../palette';
 
 const MATCH_COUNT_TIMEOUT_MS = 5000;
@@ -197,30 +198,13 @@ const FounderDashboard = ({ user }) => {
               { label: 'Matches', value: stats.matches, helper: 'Candidates discovered' },
               { label: 'Requests', value: stats.requests, helper: 'Pending invites' },
             ].map((item) => (
-              <div
+              <MetricTile
                 key={item.label}
-                className="surface-card"
-                style={{
-                  borderRadius: palette.borderRadius.xl,
-                  padding: palette.spacing.xl,
-                  background: item.accent
-                    ? 'linear-gradient(130deg, rgba(201, 168, 76, 0.16), rgba(12, 12, 12, 1))'
-                    : palette.colors.background.secondary,
-                }}
-              >
-                <p className="mono-label">{item.label}</p>
-                <p style={{
-                  margin: `${palette.spacing.sm} 0 ${palette.spacing.xs} 0`,
-                  fontFamily: palette.typography.fontFamily.mono,
-                  fontSize: palette.typography.fontSize['4xl'],
-                  color: item.accent ? palette.colors.primary.cyan : palette.colors.text.primary,
-                }}>
-                  {item.value}
-                </p>
-                <p style={{ color: palette.colors.text.secondary, fontSize: palette.typography.fontSize.sm }}>
-                  {item.helper}
-                </p>
-              </div>
+                label={item.label}
+                value={item.value}
+                helper={item.helper}
+                accent={item.accent}
+              />
             ))}
           </div>
 
@@ -272,7 +256,7 @@ const FounderDashboard = ({ user }) => {
                       whiteSpace: 'pre-wrap',
                     }}>
                       {isLong && !isExpanded
-                        ? project.description.substring(0, 300) + '…'
+                        ? project.description.substring(0, 300) + '...'
                         : project.description}
                     </p>
 
@@ -293,7 +277,7 @@ const FounderDashboard = ({ user }) => {
                           marginBottom: palette.spacing.lg,
                         }}
                       >
-                        {isExpanded ? 'Show less ↑' : 'Read more ↓'}
+                        {isExpanded ? 'Show less' : 'Read more'}
                       </button>
                     )}
 

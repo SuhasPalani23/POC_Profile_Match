@@ -4,6 +4,10 @@ import { collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
 import palette from '../../palette';
 
+const notify = (type, message) => {
+  window.dispatchEvent(new CustomEvent('app-toast', { detail: { type, message } }));
+};
+
 const UserDashboard = ({ user }) => {
   const navigate = useNavigate();
   const [myProjects, setMyProjects] = useState([]);
@@ -22,7 +26,7 @@ const UserDashboard = ({ user }) => {
       await collaborationAPI.leaveProject(collaborationId);
       setMyProjects(prev => prev.filter(p => p.collaboration_id !== collaborationId));
     } catch {
-      alert('Failed to leave project');
+      notify('error', 'Failed to leave project');
     }
   };
 

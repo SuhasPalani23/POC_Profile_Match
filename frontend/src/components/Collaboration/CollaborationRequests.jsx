@@ -3,6 +3,10 @@ import { collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
 import palette from '../../palette';
 
+const notify = (type, message) => {
+  window.dispatchEvent(new CustomEvent('app-toast', { detail: { type, message } }));
+};
+
 const CollaborationRequests = ({ user, onRequestUpdate }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +35,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
       if (onRequestUpdate) onRequestUpdate();
     } catch (error) {
       console.error('Error accepting request:', error);
-      alert('Failed to accept request');
+      notify('error', 'Failed to accept request');
     } finally {
       setProcessingId(null);
     }
@@ -45,7 +49,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
       if (onRequestUpdate) onRequestUpdate();
     } catch (error) {
       console.error('Error rejecting request:', error);
-      alert('Failed to reject request');
+      notify('error', 'Failed to reject request');
     } finally {
       setProcessingId(null);
     }
