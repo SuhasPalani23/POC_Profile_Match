@@ -12,11 +12,18 @@ import gridfs
 import tempfile
 import os
 import io
-import threading
+from models.project import Project
+from utils.api_response import api_error, api_success, validation_error
+from utils.validation import validate_required_fields
+from services.background_tasks import enqueue
 
 profile_bp = Blueprint("profile", __name__)
 ats_service = ATSService()
-vector_service = VectorService()
+try:
+    vector_service = VectorService()
+except Exception as exc:
+    vector_service = None
+    print(f"[profile] Vector service unavailable at startup: {exc}")
 
 # GridFS — same MongoDB the rest of the app uses
 _client = MongoClient(Config.MONGODB_URI)
@@ -35,6 +42,9 @@ def allowed_file(filename: str) -> bool:
 # ------------------------------------------------------------------
 
 def _upsert_user_vector_bg(user_id: str):
+    if vector_service is None:
+        ws_service.emit_vector_update(user_id, "failed")
+        return
     try:
         user = User.find_by_id(user_id)
         if user:
@@ -49,8 +59,7 @@ def _upsert_user_vector_bg(user_id: str):
 
 
 def _start_vector_upsert(user_id: str):
-    t = threading.Thread(target=_upsert_user_vector_bg, args=(user_id,), daemon=True)
-    t.start()
+    enqueue(_upsert_user_vector_bg, user_id)
 
 
 # ------------------------------------------------------------------
@@ -61,7 +70,7 @@ def _start_vector_upsert(user_id: str):
 @token_required
 def get_profile(current_user):
     current_user.pop("password", None)
-    return jsonify({"user": current_user}), 200
+    return api_success({"user": current_user}, message="Profile fetched")
 
 
 # ------------------------------------------------------------------
@@ -71,7 +80,7 @@ def get_profile(current_user):
 @profile_bp.route("/update", methods=["PUT"])
 @token_required
 def update_profile(current_user):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     allowed = [
         "name", "bio", "skills", "linkedin",
@@ -83,27 +92,29 @@ def update_profile(current_user):
         update_fields["experience_years"] = int(update_fields["experience_years"])
 
     if not update_fields:
-        return jsonify({"error": "No valid fields to update"}), 400
+        return validation_error("No valid fields to update")
 
     success = User.update_profile(current_user["_id"], update_fields)
     if not success:
-        return jsonify({"error": "Failed to update profile"}), 500
+        return api_error("PROFILE_UPDATE_FAILED", "Failed to update profile", 500)
 
     updated_user = User.find_by_id(current_user["_id"])
     updated_user.pop("password", None)
 
     _start_vector_upsert(current_user["_id"])
+    Project.clear_all_cached_matches()
 
     ws_service.emit_profile_update(current_user["_id"], {
         "message": "Profile updated successfully",
         "updated_fields": list(update_fields.keys()),
     })
 
-    return jsonify({
+    return api_success({
         "message": "Profile updated successfully",
         "user": updated_user,
         "vector_update_initiated": True,
-    }), 200
+        "match_cache_invalidated": True,
+    }, message="Profile updated successfully")
 
 
 # ------------------------------------------------------------------
@@ -128,22 +139,22 @@ def upload_resume(current_user):
     every developer and every server using the same database.
     """
     if "resume" not in request.files:
-        return jsonify({"error": "No resume file provided"}), 400
+        return validation_error("No resume file provided")
 
     file = request.files["resume"]
 
     if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
+        return validation_error("No file selected")
 
     if not allowed_file(file.filename):
-        return jsonify({"error": "Only PDF and DOCX files are allowed"}), 400
+        return validation_error("Only PDF and DOCX files are allowed")
 
     # Check size (10MB limit)
     file.seek(0, 2)
     file_size = file.tell()
     file.seek(0)
     if file_size > 10 * 1024 * 1024:
-        return jsonify({"error": "File size must be less than 10MB"}), 400
+        return validation_error("File size must be less than 10MB")
 
     filename = secure_filename(f"{current_user['_id']}_{file.filename}")
     content_type = file.content_type or "application/octet-stream"
@@ -180,7 +191,7 @@ def upload_resume(current_user):
         analysis = ats_service.comprehensive_profile_analysis(current_user, tmp_path)
 
     except Exception as e:
-        return jsonify({"error": f"Failed to analyse resume: {str(e)}"}), 500
+        return api_error("RESUME_ANALYSIS_FAILED", f"Failed to analyse resume: {str(e)}", 500)
 
     finally:
         if tmp_path and os.path.exists(tmp_path):
@@ -208,16 +219,18 @@ def upload_resume(current_user):
 
     # Pinecone upsert in background (vector now includes full resume text)
     _start_vector_upsert(current_user["_id"])
+    Project.clear_all_cached_matches()
 
     updated_user = User.find_by_id(current_user["_id"])
     updated_user.pop("password", None)
 
-    return jsonify({
+    return api_success({
         "message": "Resume uploaded and analysed successfully",
         "analysis": analysis,
         "user": updated_user,
         "vector_update_initiated": True,
-    }), 200
+        "match_cache_invalidated": True,
+    }, message="Resume uploaded and analysed successfully")
 
 
 # ------------------------------------------------------------------
@@ -234,11 +247,11 @@ def get_resume(current_user, user_id):
     """
     target_user = User.find_by_id(user_id)
     if not target_user:
-        return jsonify({"error": "User not found"}), 404
+        return api_error("USER_NOT_FOUND", "User not found", 404)
 
     file_id = target_user.get("resume_file_id")
     if not file_id:
-        return jsonify({"error": "No resume uploaded for this user"}), 404
+        return api_error("RESUME_NOT_FOUND", "No resume uploaded for this user", 404)
 
     try:
         grid_out = fs.get(ObjectId(file_id))
@@ -249,9 +262,9 @@ def get_resume(current_user, user_id):
             as_attachment=True,
         )
     except gridfs.errors.NoFile:
-        return jsonify({"error": "Resume file not found in storage"}), 404
+        return api_error("RESUME_NOT_FOUND", "Resume file not found in storage", 404)
     except Exception as e:
-        return jsonify({"error": f"Failed to retrieve resume: {str(e)}"}), 500
+        return api_error("RESUME_FETCH_FAILED", f"Failed to retrieve resume: {str(e)}", 500)
 
 
 # ------------------------------------------------------------------
@@ -266,7 +279,7 @@ def delete_resume(current_user):
     Re-indexes in Pinecone so the vector no longer reflects resume content.
     """
     if not current_user.get("resume_file_id") and not current_user.get("resume"):
-        return jsonify({"error": "No resume to delete"}), 404
+        return api_error("RESUME_NOT_FOUND", "No resume to delete", 404)
 
     file_id = current_user.get("resume_file_id")
     if file_id:
@@ -284,11 +297,13 @@ def delete_resume(current_user):
     })
 
     _start_vector_upsert(current_user["_id"])
+    Project.clear_all_cached_matches()
 
-    return jsonify({
+    return api_success({
         "message": "Resume deleted successfully",
         "vector_update_initiated": True,
-    }), 200
+        "match_cache_invalidated": True,
+    }, message="Resume deleted successfully")
 
 
 # ------------------------------------------------------------------
@@ -309,7 +324,7 @@ def calculate_ats_score(current_user, project_id):
 
     project = Project.find_by_id(project_id)
     if not project:
-        return jsonify({"error": "Project not found"}), 404
+        return api_error("PROJECT_NOT_FOUND", "Project not found", 404)
 
     user_text_parts = [
         f"Name: {current_user.get('name', '')}",
@@ -336,7 +351,7 @@ def calculate_ats_score(current_user, project_id):
     }
 
     ws_service.emit_ats_score_update(current_user["_id"], result)
-    return jsonify(result), 200
+    return api_success(result, message="ATS score calculated")
 
 
 # ------------------------------------------------------------------
@@ -354,7 +369,7 @@ def analyze_current_resume(current_user):
     resume_text_stored = current_user.get("resume_text", "")
 
     if not file_id and not resume_text_stored:
-        return jsonify({"error": "No resume uploaded"}), 404
+        return api_error("RESUME_NOT_FOUND", "No resume uploaded", 404)
 
     tmp_path = None
     try:
@@ -374,7 +389,7 @@ def analyze_current_resume(current_user):
             except gridfs.errors.NoFile:
                 # GridFS file gone but text is in MongoDB — use it
                 if not resume_text_stored:
-                    return jsonify({"error": "Resume file not found in storage"}), 404
+                    return api_error("RESUME_NOT_FOUND", "Resume file not found in storage", 404)
                 ai_insights = ats_service.analyze_resume_with_ai(resume_text_stored)
                 analysis = {"ai_insights": ai_insights, "resume_text": resume_text_stored}
         else:
@@ -385,10 +400,10 @@ def analyze_current_resume(current_user):
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-    return jsonify({
+    return api_success({
         "message": "Resume analysed successfully",
         "analysis": analysis,
-    }), 200
+    }, message="Resume analysed successfully")
 
 
 # ------------------------------------------------------------------
@@ -399,7 +414,7 @@ def analyze_current_resume(current_user):
 @token_required
 def get_skills_suggestions(current_user):
     """LLM-powered skill gap suggestions based on current profile."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     target_role = data.get("target_role", current_user.get("professional_title", ""))
 
     prompt = f"""
@@ -426,6 +441,6 @@ Respond ONLY with valid JSON — no markdown fences:
             contents=prompt,
         )
         result = ats_service.gemini_service._extract_json(response.text)
-        return jsonify(result if result else {"suggested_skills": []}), 200
+        return api_success(result if result else {"suggested_skills": []}, message="Skill suggestions fetched")
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return api_error("SKILLS_SUGGESTIONS_FAILED", str(e), 500)

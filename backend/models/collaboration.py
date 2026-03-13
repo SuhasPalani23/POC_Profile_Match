@@ -25,6 +25,19 @@ class Collaboration:
         result = collaborations_collection.insert_one(collaboration)
         collaboration['_id'] = str(result.inserted_id)
         return collaboration
+
+    @staticmethod
+    def create_or_get_request(project_id, founder_id, candidate_id, message=""):
+        existing = collaborations_collection.find_one({
+            "project_id": project_id,
+            "candidate_id": candidate_id,
+            "founder_id": founder_id,
+            "status": {"$in": ["pending", "accepted"]}
+        })
+        if existing:
+            existing["_id"] = str(existing["_id"])
+            return existing, False
+        return Collaboration.create_request(project_id, founder_id, candidate_id, message), True
     
     @staticmethod
     def find_by_id(collaboration_id):
@@ -48,6 +61,13 @@ class Collaboration:
         collabs = list(collaborations_collection.find({"project_id": project_id}))
         for collab in collabs:
             collab['_id'] = str(collab['_id'])
+        return collabs
+
+    @staticmethod
+    def find_by_founder(founder_id):
+        collabs = list(collaborations_collection.find({"founder_id": founder_id}))
+        for collab in collabs:
+            collab["_id"] = str(collab["_id"])
         return collabs
     
     @staticmethod
@@ -112,6 +132,17 @@ class Collaboration:
             {"_id": ObjectId(collaboration_id)},
             {"$set": {
                 "status": "left",
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return result.modified_count > 0
+
+    @staticmethod
+    def cancel_request(collaboration_id):
+        result = collaborations_collection.update_one(
+            {"_id": ObjectId(collaboration_id)},
+            {"$set": {
+                "status": "cancelled",
                 "updated_at": datetime.utcnow()
             }}
         )

@@ -1,54 +1,50 @@
-// Founding Mindset Portal - Theme Palette
-// Based on Deepgram design
-
 const palette = {
-  // Colors
   colors: {
     background: {
-      primary: '#0A0A0A',
-      secondary: '#1A1A1A',
-      tertiary: '#2A2A2A',
+      primary: '#000000',
+      secondary: '#0a0a0a',
+      tertiary: '#111111',
     },
     primary: {
-      cyan: '#13EFB7',
-      blue: '#0EA5E9',
-      gradient: 'linear-gradient(135deg, #13EFB7 0%, #0EA5E9 100%)',
+      cyan: '#c9a84c',
+      blue: '#c9a84c',
+      gradient: 'linear-gradient(135deg, #c9a84c 0%, #f0ede8 100%)',
     },
     text: {
-      primary: '#FFFFFF',
-      secondary: '#9CA3AF',
-      tertiary: '#6B7280',
+      primary: '#f0ede8',
+      secondary: '#8f8676',
+      tertiary: '#555555',
     },
     status: {
-      success: '#10B981',
-      error: '#EF4444',
-      warning: '#F59E0B',
-      info: '#3B82F6',
+      success: '#c9a84c',
+      error: '#d86b6b',
+      warning: '#c9a84c',
+      info: '#f0ede8',
     },
     border: {
-      primary: '#2A2A2A',
-      secondary: '#3A3A3A',
-      accent: '#13EFB7',
+      primary: '#1a1a1a',
+      secondary: '#2a2a2a',
+      accent: '#c9a84c',
     },
   },
 
-  // Typography
   typography: {
     fontFamily: {
-      primary: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      mono: "'Fira Code', 'Courier New', monospace",
+      primary: "'DM Mono', monospace",
+      mono: "'IBM Plex Mono', monospace",
+      display: "'Cormorant Garamond', serif",
     },
     fontSize: {
-      xs: '0.75rem',      // 12px
-      sm: '0.875rem',     // 14px
-      base: '1rem',       // 16px
-      lg: '1.125rem',     // 18px
-      xl: '1.25rem',      // 20px
-      '2xl': '1.5rem',    // 24px
-      '3xl': '1.875rem',  // 30px
-      '4xl': '2.25rem',   // 36px
-      '5xl': '3rem',      // 48px
-      '6xl': '3.75rem',   // 60px
+      xs: '0.6875rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.375rem',
+      '2xl': '1.75rem',
+      '3xl': '2.375rem',
+      '4xl': '3.125rem',
+      '5xl': '4rem',
+      '6xl': '5.5rem',
     },
     fontWeight: {
       light: 300,
@@ -66,45 +62,40 @@ const palette = {
     },
   },
 
-  // Spacing
   spacing: {
-    xs: '0.25rem',   // 4px
-    sm: '0.5rem',    // 8px
-    md: '1rem',      // 16px
-    lg: '1.5rem',    // 24px
-    xl: '2rem',      // 32px
-    '2xl': '3rem',   // 48px
-    '3xl': '4rem',   // 64px
+    xs: '0.25rem',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    '2xl': '3rem',
+    '3xl': '7.5rem',
   },
 
-  // Border Radius
   borderRadius: {
     none: '0',
-    sm: '0.25rem',   // 4px
-    md: '0.5rem',    // 8px
-    lg: '0.75rem',   // 12px
-    xl: '1rem',      // 16px
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '0.75rem',
+    xl: '1rem',
     full: '9999px',
   },
 
-  // Shadows
   shadows: {
-    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-    glow: '0 0 20px rgba(19, 239, 183, 0.3)',
-    glowHover: '0 0 30px rgba(19, 239, 183, 0.5)',
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
+    md: '0 6px 20px -4px rgba(0, 0, 0, 0.35)',
+    lg: '0 16px 34px -8px rgba(0, 0, 0, 0.5)',
+    xl: '0 30px 60px -16px rgba(0, 0, 0, 0.7)',
+    glow: '0 0 28px rgba(201, 168, 76, 0.15)',
+    glowHover: '0 0 40px rgba(201, 168, 76, 0.22)',
   },
 
-  // Transitions
   transitions: {
-    fast: '150ms',
-    normal: '300ms',
-    slow: '500ms',
+    fast: '250ms',
+    normal: '320ms',
+    slow: '380ms',
   },
 
-  // Z-index
   zIndex: {
     dropdown: 1000,
     sticky: 1020,

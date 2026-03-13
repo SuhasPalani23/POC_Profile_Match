@@ -1,90 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --bg-void: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #111111;
+  --border: #1a1a1a;
+  --accent-gold: #c9a84c;
+  --accent-white: #f0ede8;
+  --accent-dim: #555555;
+  --glow: rgba(201, 168, 76, 0.15);
+}
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  cursor: auto;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'DM Mono', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0A0A0A;
-  color: #FFFFFF;
+  background: var(--bg-void);
+  color: var(--accent-white);
+  min-height: 100vh;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.95'/%3E%3C/svg%3E");
 }
 
-/* Custom scrollbar */
+.app-shell::after {
+  content: '';
+  position: fixed;
+  width: 520px;
+  height: 520px;
+  top: -120px;
+  right: -80px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.06) 0%, rgba(201, 168, 76, 0) 70%);
+  animation: drift-orb 16s ease-in-out infinite alternate;
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.1;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.04) 0,
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+
+
+.surface-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  transition: border-color 320ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1), transform 320ms cubic-bezier(0.16, 1, 0.3, 1), opacity 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.surface-card:hover {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 40px rgba(201, 168, 76, 0.08);
+}
+
+.surface-card:hover .match-avatar {
+  filter: grayscale(0);
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, var(--accent-gold) 0%, var(--accent-white) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(4.5rem, 10vw, 8.75rem);
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+}
+
+.mono-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.67rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-dim);
+}
+
+.rule-draw {
+  transform-origin: left;
+  animation: draw-rule 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.word-rise {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: word-rise 550ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.word-delay-1 {
+  animation-delay: 150ms;
+}
+
+.word-delay-2 {
+  animation-delay: 300ms;
+}
+
+.word-delay-3 {
+  animation-delay: 450ms;
+}
+
+.reveal-card {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.reveal-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cinematic-loader {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-void);
+  overflow: hidden;
+}
+
+.cinematic-loader::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.04) 0,
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.pulse-ring {
+  width: 74px;
+  height: 74px;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-gold);
+  box-shadow: 0 0 28px var(--glow);
+  animation: pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1A1A1A;
+  background: #050505;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2A2A2A;
+  background: #272727;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3A3A3A;
+  background: #3c3c3c;
 }
 
-/* Gradient text utility */
-.gradient-text {
-  background: linear-gradient(135deg, #13EFB7 0%, #0EA5E9 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.45;
   }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.45;
+  }
+}
+
+@keyframes word-rise {
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes spin {
+@keyframes draw-rule {
+  from {
+    transform: scaleX(0);
+  }
   to {
-    transform: rotate(360deg);
+    transform: scaleX(1);
   }
 }
 
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@keyframes drift-orb {
+  from {
+    transform: translate3d(0, 0, 0);
   }
-  50% {
-    opacity: 0.5;
+  to {
+    transform: translate3d(-90px, 50px, 0);
   }
 }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: clamp(3rem, 16vw, 4.5rem);
+  }
 }

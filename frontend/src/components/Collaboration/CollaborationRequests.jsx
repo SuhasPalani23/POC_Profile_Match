@@ -3,6 +3,10 @@ import { collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
 import palette from '../../palette';
 
+const notify = (type, message) => {
+  window.dispatchEvent(new CustomEvent('app-toast', { detail: { type, message } }));
+};
+
 const CollaborationRequests = ({ user, onRequestUpdate }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +35,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
       if (onRequestUpdate) onRequestUpdate();
     } catch (error) {
       console.error('Error accepting request:', error);
-      alert('Failed to accept request');
+      notify('error', 'Failed to accept request');
     } finally {
       setProcessingId(null);
     }
@@ -45,7 +49,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
       if (onRequestUpdate) onRequestUpdate();
     } catch (error) {
       console.error('Error rejecting request:', error);
-      alert('Failed to reject request');
+      notify('error', 'Failed to reject request');
     } finally {
       setProcessingId(null);
     }
@@ -63,6 +67,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
           animation: 'spin 1s linear infinite',
           margin: '0 auto',
         }}></div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -74,17 +79,14 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
         padding: palette.spacing['2xl'],
         color: palette.colors.text.secondary,
       }}>
-        <div style={{ fontSize: '48px', marginBottom: palette.spacing.md }}>📬</div>
+        <div style={{ fontSize: '48px', marginBottom: palette.spacing.md }}></div>
         <p>No pending collaboration requests</p>
       </div>
     );
   }
 
   return (
-    <div style={{
-      display: 'grid',
-      gap: palette.spacing.lg,
-    }}>
+    <div style={{ display: 'grid', gap: palette.spacing.lg }}>
       {requests.map((request) => (
         <div
           key={request._id}
@@ -104,13 +106,15 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
             }}>
               {request.project.title}
             </h3>
+            {/* Full description — no truncation */}
             <p style={{
               color: palette.colors.text.secondary,
               fontSize: palette.typography.fontSize.sm,
               lineHeight: palette.typography.lineHeight.relaxed,
               marginBottom: palette.spacing.md,
+              whiteSpace: 'pre-wrap',
             }}>
-              {request.project.description.substring(0, 200)}...
+              {request.project.description}
             </p>
           </div>
 
@@ -142,13 +146,14 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
             }}>
               {request.founder.professional_title || 'Founder'}
             </p>
+            {/* Full bio — no truncation */}
             {request.founder.bio && (
               <p style={{
                 fontSize: palette.typography.fontSize.sm,
                 color: palette.colors.text.secondary,
                 lineHeight: palette.typography.lineHeight.relaxed,
               }}>
-                {request.founder.bio.substring(0, 150)}...
+                {request.founder.bio}
               </p>
             )}
           </div>
@@ -156,7 +161,7 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
           {/* Message */}
           {request.message && (
             <div style={{
-              backgroundColor: 'rgba(19, 239, 183, 0.1)',
+              backgroundColor: 'rgba(201, 168, 76, 0.08)',
               border: `1px solid ${palette.colors.primary.cyan}`,
               borderRadius: palette.borderRadius.md,
               padding: palette.spacing.md,
@@ -181,17 +186,14 @@ const CollaborationRequests = ({ user, onRequestUpdate }) => {
           )}
 
           {/* Actions */}
-          <div style={{
-            display: 'flex',
-            gap: palette.spacing.md,
-          }}>
+          <div style={{ display: 'flex', gap: palette.spacing.md }}>
             <Button
               onClick={() => handleAccept(request._id)}
               loading={processingId === request._id}
               disabled={processingId !== null}
               fullWidth
             >
-              Accept & Join Team
+              Accept &amp; Join Team
             </Button>
             <Button
               onClick={() => handleReject(request._id)}
