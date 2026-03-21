@@ -1,21 +1,19 @@
 from datetime import datetime
-from pymongo import MongoClient
 
-from config import Config
+from db import get_collection
 from models.user import User
-from services.gemini_service import GeminiService
+from services.llama_service import LlamaService
 from services.vector_service import VectorService
 
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-feedback_collection = db["matching_feedback"]
+def feedback_collection():
+    return get_collection("matching_feedback")
 
 
 class MatchingService:
     def __init__(self):
         self.vector_service = VectorService()
-        self.gemini_service = GeminiService()
+        self.llama_service = LlamaService()
         self.default_weights = {
             "vector_similarity": 0.35,
             "skills_overlap": 0.30,
@@ -31,7 +29,7 @@ class MatchingService:
             "feedback": feedback,
             "created_at": datetime.utcnow(),
         }
-        result = feedback_collection.insert_one(doc)
+        result = feedback_collection().insert_one(doc)
         doc["_id"] = str(result.inserted_id)
         return doc
 
@@ -68,7 +66,7 @@ class MatchingService:
         return sum(self.default_weights[key] * subscores[key] for key in self.default_weights)
 
     def find_matches(self, project: dict, founder_id: str, top_k: int = 10) -> list:
-        project_analysis = self.gemini_service.analyze_project_needs(project["description"])
+        project_analysis = self.llama_service.analyze_project_needs(project["description"])
         required_skills = project_analysis.get("required_skills", []) or project.get("required_skills", [])
         required_roles = project_analysis.get("required_roles", [])
 
@@ -89,7 +87,7 @@ class MatchingService:
         if not candidates:
             return []
 
-        rankings = self.gemini_service.rank_candidates(
+        rankings = self.llama_service.rank_candidates(
             project=project,
             candidates=candidates[:10],
             project_analysis=project_analysis,

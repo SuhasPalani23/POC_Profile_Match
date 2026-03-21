@@ -1,7 +1,10 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+_root_env = os.path.abspath(os.path.join(_backend_dir, "..", ".env"))
+# Always load the repo-level .env regardless of cwd.
+load_dotenv(_root_env, override=True)
 
 class Config:
     MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
@@ -12,6 +15,7 @@ class Config:
     PORT = int(os.getenv('PORT', '5001'))
     HOST = os.getenv('HOST', '0.0.0.0')
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+    GROQ_API_KEY = os.getenv('GROQ_API_KEY')
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     FRONTEND_URLS = [url.strip() for url in os.getenv('FRONTEND_URLS', FRONTEND_URL).split(',') if url.strip()]
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', str(10 * 1024 * 1024)))

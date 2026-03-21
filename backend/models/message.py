@@ -1,11 +1,10 @@
-from pymongo import MongoClient
-from config import Config
 from datetime import datetime
 from bson.objectid import ObjectId
+from db import get_collection
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-messages_collection = db['messages']
+
+def messages_collection():
+    return get_collection("messages")
 
 class Message:
     @staticmethod
@@ -21,7 +20,7 @@ class Message:
             "read_by": []
         }
         
-        result = messages_collection.insert_one(message)
+        result = messages_collection().insert_one(message)
         message['_id'] = str(result.inserted_id)
         return message
     
@@ -31,7 +30,7 @@ class Message:
         query = {"project_id": project_id, "dm_recipient_id": None}
         if before:
             query["created_at"] = {"$lt": before}
-        messages = list(messages_collection.find(query).sort("created_at", -1).limit(limit))
+        messages = list(messages_collection().find(query).sort("created_at", -1).limit(limit))
         
         messages.reverse()
         
@@ -51,7 +50,7 @@ class Message:
         }
         if before:
             query["created_at"] = {"$lt": before}
-        messages = list(messages_collection.find(query).sort("created_at", -1).limit(limit))
+        messages = list(messages_collection().find(query).sort("created_at", -1).limit(limit))
         
         messages.reverse()
         
@@ -61,7 +60,7 @@ class Message:
     
     @staticmethod
     def mark_as_read(message_id, user_id):
-        result = messages_collection.update_one(
+        result = messages_collection().update_one(
             {"_id": ObjectId(message_id)},
             {"$addToSet": {"read_by": user_id}}
         )
@@ -69,7 +68,7 @@ class Message:
     
     @staticmethod
     def get_unread_count(project_id, user_id):
-        count = messages_collection.count_documents({
+        count = messages_collection().count_documents({
             "project_id": project_id,
             "dm_recipient_id": None,
             "sender_id": {"$ne": user_id},
@@ -92,10 +91,10 @@ class Message:
             },
             {"$group": {"_id": "$sender_id", "count": {"$sum": 1}}}
         ]
-        dm_counts = {row["_id"]: row["count"] for row in messages_collection.aggregate(dm_pipeline)}
+        dm_counts = {row["_id"]: row["count"] for row in messages_collection().aggregate(dm_pipeline)}
         return {"group": group_count, "dms": dm_counts}
     
     @staticmethod
     def delete_message(message_id):
-        result = messages_collection.delete_one({"_id": ObjectId(message_id)})
+        result = messages_collection().delete_one({"_id": ObjectId(message_id)})
         return result.deleted_count > 0

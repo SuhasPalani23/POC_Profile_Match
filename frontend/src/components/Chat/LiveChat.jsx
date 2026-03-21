@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import palette from "../../palette";
@@ -31,7 +31,10 @@ const LiveChat = ({ user }) => {
 
   const isFounder = team && team.founder.user_id === user._id;
   const activeDmUserId = chatMode.startsWith("dm_") ? chatMode.replace("dm_", "") : null;
-  const currentMessages = activeDmUserId ? dmMessages[activeDmUserId] || [] : groupMessages;
+  const currentMessages = useMemo(
+    () => (activeDmUserId ? dmMessages[activeDmUserId] || [] : groupMessages),
+    [activeDmUserId, dmMessages, groupMessages]
+  );
 
   const allMembers = useMemo(() => {
     if (!team) return [];
@@ -40,62 +43,12 @@ const LiveChat = ({ user }) => {
 
   const otherMembers = allMembers.filter((m) => m.user_id !== user._id);
 
-  useEffect(() => {
-    loadChatData();
-  }, [projectId]);
-
-  useEffect(() => {
-    if (!socket) return;
-    joinProject(projectId);
-    socket.on("new_message", handleIncomingMessage);
-    socket.on("new_dm", handleIncomingMessage);
-    socket.on("member_left", () => loadTeamOnly());
-    return () => {
-      leaveProject(projectId);
-      socket.off("new_message", handleIncomingMessage);
-      socket.off("new_dm", handleIncomingMessage);
-      socket.off("member_left");
-    };
-  }, [socket, projectId, activeDmUserId]);
-
-  useEffect(() => {
-    if (!socket || !activeDmUserId) return;
-    socket.emit("join_dm", { other_user_id: activeDmUserId, token: localStorage.getItem("token") });
-    if (!dmMessages[activeDmUserId]) {
-      chatAPI
-        .getDMMessages(projectId, activeDmUserId, { limit: 50 })
-        .then((r) => {
-          setDmMessages((prev) => ({ ...prev, [activeDmUserId]: r.data.messages || [] }));
-          setDmPaging((prev) => ({ ...prev, [activeDmUserId]: r.data.paging || { next_before: null, limit: 50 } }));
-        })
-        .catch(() => {});
-    }
-    return () => {
-      socket.emit("leave_dm", { other_user_id: activeDmUserId, token: localStorage.getItem("token") });
-    };
-  }, [socket, activeDmUserId, projectId]);
-
-  useEffect(() => {
-    if (chatMode === "group") {
-      setUnreadThreads((prev) => ({ ...prev, group: 0 }));
-    } else if (activeDmUserId) {
-      setUnreadThreads((prev) => ({
-        ...prev,
-        dms: { ...(prev.dms || {}), [activeDmUserId]: 0 },
-      }));
-    }
-  }, [chatMode, activeDmUserId]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentMessages.length, activeDmUserId]);
-
-  const loadTeamOnly = async () => {
+  const loadTeamOnly = useCallback(async () => {
     const teamRes = await collaborationAPI.getTeamMembers(projectId);
     setTeam(teamRes.data);
-  };
+  }, [projectId]);
 
-  const loadChatData = async () => {
+  const loadChatData = useCallback(async () => {
     setLoading(true);
     try {
       const [teamRes, msgRes, unreadRes] = await Promise.all([
@@ -113,7 +66,7 @@ const LiveChat = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, projectId]);
 
   const addOrReconcile = (prev, msg) => {
     const serverId = msg.message_id || msg._id;
@@ -133,7 +86,7 @@ const LiveChat = ({ user }) => {
     return [...prev, msg];
   };
 
-  const handleIncomingMessage = (msg) => {
+  const handleIncomingMessage = useCallback((msg) => {
     if (msg.dm_recipient_id) {
       const otherId = msg.sender_id === user._id ? msg.dm_recipient_id : msg.sender_id;
       setDmMessages((prev) => ({ ...prev, [otherId]: addOrReconcile(prev[otherId] || [], msg) }));
@@ -149,7 +102,58 @@ const LiveChat = ({ user }) => {
     if (msg.sender_id !== user._id && !activeDmUserId) {
       setUnreadThreads((prev) => ({ ...prev, group: (prev.group || 0) + 1 }));
     }
-  };
+  }, [activeDmUserId, user._id]);
+
+  useEffect(() => {
+    loadChatData();
+  }, [loadChatData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleMemberLeft = () => loadTeamOnly();
+    joinProject(projectId);
+    socket.on("new_message", handleIncomingMessage);
+    socket.on("new_dm", handleIncomingMessage);
+    socket.on("member_left", handleMemberLeft);
+    return () => {
+      leaveProject(projectId);
+      socket.off("new_message", handleIncomingMessage);
+      socket.off("new_dm", handleIncomingMessage);
+      socket.off("member_left", handleMemberLeft);
+    };
+  }, [handleIncomingMessage, joinProject, leaveProject, loadTeamOnly, projectId, socket]);
+
+  useEffect(() => {
+    if (!socket || !activeDmUserId) return;
+    socket.emit("join_dm", { other_user_id: activeDmUserId, token: localStorage.getItem("token") });
+    if (!dmMessages[activeDmUserId]) {
+      chatAPI
+        .getDMMessages(projectId, activeDmUserId, { limit: 50 })
+        .then((r) => {
+          setDmMessages((prev) => ({ ...prev, [activeDmUserId]: r.data.messages || [] }));
+          setDmPaging((prev) => ({ ...prev, [activeDmUserId]: r.data.paging || { next_before: null, limit: 50 } }));
+        })
+        .catch(() => {});
+    }
+    return () => {
+      socket.emit("leave_dm", { other_user_id: activeDmUserId, token: localStorage.getItem("token") });
+    };
+  }, [socket, activeDmUserId, projectId, dmMessages]);
+
+  useEffect(() => {
+    if (chatMode === "group") {
+      setUnreadThreads((prev) => ({ ...prev, group: 0 }));
+    } else if (activeDmUserId) {
+      setUnreadThreads((prev) => ({
+        ...prev,
+        dms: { ...(prev.dms || {}), [activeDmUserId]: 0 },
+      }));
+    }
+  }, [chatMode, activeDmUserId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [currentMessages, activeDmUserId]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();

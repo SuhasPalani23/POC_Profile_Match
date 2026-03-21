@@ -1,9 +1,12 @@
 POC/
 datasets/
 node_modules/
+frontend/build/
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
 .env
 *.pkl
 *faiss*

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { projectAPI, matchingAPI, collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
@@ -22,25 +22,6 @@ const FounderDashboard = ({ user }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const cachedStatsRaw = localStorage.getItem(`founder_dashboard_stats_${user._id}`);
-    if (cachedStatsRaw) {
-      try {
-        const cachedStats = JSON.parse(cachedStatsRaw);
-        setStats((prev) => ({
-          ...prev,
-          projects: typeof cachedStats.projects === 'number' ? cachedStats.projects : prev.projects,
-          matches: typeof cachedStats.matches === 'number' ? cachedStats.matches : prev.matches,
-          requests: typeof cachedStats.requests === 'number' ? cachedStats.requests : prev.requests,
-        }));
-      } catch (error) {
-        console.error('Error reading cached dashboard stats:', error);
-      }
-    }
-
-    fetchProjects();
-  }, []);
-
-  useEffect(() => {
     localStorage.setItem(`founder_dashboard_stats_${user._id}`, JSON.stringify(stats));
   }, [stats, user._id]);
 
@@ -56,30 +37,7 @@ const FounderDashboard = ({ user }) => {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const fetchProjects = async () => {
-    try {
-      const response = await projectAPI.getMyProjects();
-      const projectList = response.data.projects || [];
-      const liveProjects = projectList.filter((project) => project.live);
-      const cachedMatchTotal = liveProjects.reduce(
-        (sum, project) => sum + getCachedProjectMatchCount(project._id),
-        0
-      );
-      setProjects(projectList);
-      setStats((prev) => ({
-        ...prev,
-        projects: projectList.length,
-        matches: cachedMatchTotal || prev.matches,
-      }));
-      loadSupplementaryStats(projectList);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSupplementaryStats = async (projectList) => {
+  const loadSupplementaryStats = useCallback(async (projectList) => {
     try {
       const liveProjects = projectList.filter((project) => project.live);
 
@@ -118,7 +76,49 @@ const FounderDashboard = ({ user }) => {
     } catch (error) {
       console.error('Error loading supplementary stats:', error);
     }
-  };
+  }, []);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const response = await projectAPI.getMyProjects();
+      const projectList = response.data.projects || [];
+      const liveProjects = projectList.filter((project) => project.live);
+      const cachedMatchTotal = liveProjects.reduce(
+        (sum, project) => sum + getCachedProjectMatchCount(project._id),
+        0
+      );
+      setProjects(projectList);
+      setStats((prev) => ({
+        ...prev,
+        projects: projectList.length,
+        matches: cachedMatchTotal || prev.matches,
+      }));
+      loadSupplementaryStats(projectList);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadSupplementaryStats]);
+
+  useEffect(() => {
+    const cachedStatsRaw = localStorage.getItem(`founder_dashboard_stats_${user._id}`);
+    if (cachedStatsRaw) {
+      try {
+        const cachedStats = JSON.parse(cachedStatsRaw);
+        setStats((prev) => ({
+          ...prev,
+          projects: typeof cachedStats.projects === 'number' ? cachedStats.projects : prev.projects,
+          matches: typeof cachedStats.matches === 'number' ? cachedStats.matches : prev.matches,
+          requests: typeof cachedStats.requests === 'number' ? cachedStats.requests : prev.requests,
+        }));
+      } catch (error) {
+        console.error('Error reading cached dashboard stats:', error);
+      }
+    }
+
+    fetchProjects();
+  }, [fetchProjects, user._id]);
 
   const handleViewTeam = (project) => {
     setSelectedProject(project);

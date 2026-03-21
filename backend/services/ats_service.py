@@ -3,12 +3,12 @@ import re
 import PyPDF2
 import docx
 from typing import Dict, List, Optional
-from services.gemini_service import GeminiService
+from services.llama_service import LlamaService
 
 
 class ATSService:
     def __init__(self):
-        self.gemini_service = GeminiService()
+        self.llama_service = LlamaService()
 
     # ------------------------------------------------------------------
     # File parsing (still deterministic — that's fine)
@@ -88,11 +88,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            response = self.gemini_service.client.models.generate_content(
-                model=self.gemini_service.model,
-                contents=prompt,
-            )
-            result = self.gemini_service._extract_json(response.text)
+            result = self.llama_service.generate_json(prompt)
             return result or {}
         except Exception as e:
             print(f"[ATSService] AI resume analysis error: {e}")
@@ -104,7 +100,7 @@ Respond ONLY with valid JSON — no markdown fences:
 
     def calculate_ats_score(self, candidate_text: str, job_description: str) -> Dict:
         """
-        Ask Gemini to reason about fit between a candidate profile/resume and a
+        Ask Llama to reason about fit between a candidate profile/resume and a
         job description. Returns a rich scoring object.
 
         Why LLM instead of cosine similarity:
@@ -145,11 +141,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            response = self.gemini_service.client.models.generate_content(
-                model=self.gemini_service.model,
-                contents=prompt,
-            )
-            result = self.gemini_service._extract_json(response.text)
+            result = self.llama_service.generate_json(prompt)
             return result or {
                 "overall_score": 0,
                 "technical_fit": 0,
@@ -174,7 +166,7 @@ Respond ONLY with valid JSON — no markdown fences:
         self, candidate_text: str, job_description: str
     ) -> List[str]:
         """
-        Use Gemini to generate actionable, specific tips for improving the
+        Use Llama to generate actionable, specific tips for improving the
         candidate's profile/resume for a given role.
         """
         prompt = f"""
@@ -200,11 +192,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            response = self.gemini_service.client.models.generate_content(
-                model=self.gemini_service.model,
-                contents=prompt,
-            )
-            result = self.gemini_service._extract_json(response.text)
+            result = self.llama_service.generate_json(prompt)
             return result.get("optimization_tips", []) if result else []
         except Exception as e:
             print(f"[ATSService] Optimization tips error: {e}")
@@ -235,11 +223,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            response = self.gemini_service.client.models.generate_content(
-                model=self.gemini_service.model,
-                contents=prompt,
-            )
-            result = self.gemini_service._extract_json(response.text)
+            result = self.llama_service.generate_json(prompt)
             return result.get("skills", []) if result else []
         except Exception as e:
             print(f"[ATSService] Skill extraction error: {e}")
@@ -255,7 +239,7 @@ Respond ONLY with valid JSON — no markdown fences:
         """
         Full analysis pipeline:
         1. Parse resume file → raw text
-        2. Gemini extracts structured info
+        2. Llama extracts structured info
         3. Merge with existing profile skills
         4. Return everything to the caller (route saves what it needs)
         """

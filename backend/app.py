@@ -138,8 +138,15 @@ def create_app() -> Flask:
 
     @app.errorhandler(Exception)
     def handle_internal_error(error):
+        import traceback
+        import sys
+        
+        # Log the full stack trace for debugging 500 errors
+        print(f"CRITICAL: Unhandled Exception: {str(error)}", file=sys.stderr)
+        traceback.print_exc()
+        
         return api_error("INTERNAL_ERROR", "Internal server error", 500, {"error": str(error)})
-
+        
     return app
 
 
