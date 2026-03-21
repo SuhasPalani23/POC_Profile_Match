@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
-from pymongo import MongoClient
 from config import Config
+from db import get_collection
 import secrets
 import jwt
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-sessions_collection = db['sessions']
+
+def sessions_collection():
+    return get_collection("sessions")
 
 class SessionManager:
     """Manage user sessions with MongoDB"""
@@ -27,13 +27,13 @@ class SessionManager:
             'active': True
         }
         
-        sessions_collection.insert_one(session)
+        sessions_collection().insert_one(session)
         return session_token
     
     @staticmethod
     def get_session(session_token):
         """Get session by token"""
-        return sessions_collection.find_one({
+        return sessions_collection().find_one({
             'session_token': session_token,
             'active': True,
             'expires_at': {'$gt': datetime.utcnow()}
@@ -42,7 +42,7 @@ class SessionManager:
     @staticmethod
     def update_activity(session_token):
         """Update last activity timestamp"""
-        sessions_collection.update_one(
+        sessions_collection().update_one(
             {'session_token': session_token},
             {'$set': {'last_activity': datetime.utcnow()}}
         )
@@ -50,7 +50,7 @@ class SessionManager:
     @staticmethod
     def invalidate_session(session_token):
         """Invalidate a session"""
-        sessions_collection.update_one(
+        sessions_collection().update_one(
             {'session_token': session_token},
             {'$set': {'active': False}}
         )
@@ -58,7 +58,7 @@ class SessionManager:
     @staticmethod
     def invalidate_all_user_sessions(user_id):
         """Invalidate all sessions for a user"""
-        sessions_collection.update_many(
+        sessions_collection().update_many(
             {'user_id': user_id},
             {'$set': {'active': False}}
         )
@@ -66,7 +66,7 @@ class SessionManager:
     @staticmethod
     def get_active_sessions(user_id):
         """Get all active sessions for a user"""
-        return list(sessions_collection.find({
+        return list(sessions_collection().find({
             'user_id': user_id,
             'active': True,
             'expires_at': {'$gt': datetime.utcnow()}
@@ -75,7 +75,7 @@ class SessionManager:
     @staticmethod
     def cleanup_expired_sessions():
         """Remove expired sessions"""
-        sessions_collection.delete_many({
+        sessions_collection().delete_many({
             'expires_at': {'$lt': datetime.utcnow()}
         })
     
@@ -85,7 +85,7 @@ class SessionManager:
         hours = hours or Config.JWT_EXPIRATION_HOURS
         new_expiry = datetime.utcnow() + timedelta(hours=hours)
         
-        sessions_collection.update_one(
+        sessions_collection().update_one(
             {'session_token': session_token},
             {'$set': {
                 'expires_at': new_expiry,

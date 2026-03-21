@@ -1,11 +1,10 @@
-from pymongo import MongoClient
-from config import Config
 from datetime import datetime
 from bson.objectid import ObjectId
+from db import get_collection
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-collaborations_collection = db['collaborations']
+
+def collaborations_collection():
+    return get_collection("collaborations")
 
 class Collaboration:
     @staticmethod
@@ -22,13 +21,13 @@ class Collaboration:
             "accepted_at": None
         }
         
-        result = collaborations_collection.insert_one(collaboration)
+        result = collaborations_collection().insert_one(collaboration)
         collaboration['_id'] = str(result.inserted_id)
         return collaboration
 
     @staticmethod
     def create_or_get_request(project_id, founder_id, candidate_id, message=""):
-        existing = collaborations_collection.find_one({
+        existing = collaborations_collection().find_one({
             "project_id": project_id,
             "candidate_id": candidate_id,
             "founder_id": founder_id,
@@ -42,7 +41,7 @@ class Collaboration:
     @staticmethod
     def find_by_id(collaboration_id):
         """Find collaboration by ID"""
-        collab = collaborations_collection.find_one({"_id": ObjectId(collaboration_id)})
+        collab = collaborations_collection().find_one({"_id": ObjectId(collaboration_id)})
         if collab:
             collab['_id'] = str(collab['_id'])
         return collab
@@ -50,7 +49,7 @@ class Collaboration:
     @staticmethod
     def find_by_candidate(candidate_id):
         """Get all collaboration requests for a candidate"""
-        collabs = list(collaborations_collection.find({"candidate_id": candidate_id}))
+        collabs = list(collaborations_collection().find({"candidate_id": candidate_id}))
         for collab in collabs:
             collab['_id'] = str(collab['_id'])
         return collabs
@@ -58,14 +57,14 @@ class Collaboration:
     @staticmethod
     def find_by_project(project_id):
         """Get all collaborations for a project"""
-        collabs = list(collaborations_collection.find({"project_id": project_id}))
+        collabs = list(collaborations_collection().find({"project_id": project_id}))
         for collab in collabs:
             collab['_id'] = str(collab['_id'])
         return collabs
 
     @staticmethod
     def find_by_founder(founder_id):
-        collabs = list(collaborations_collection.find({"founder_id": founder_id}))
+        collabs = list(collaborations_collection().find({"founder_id": founder_id}))
         for collab in collabs:
             collab["_id"] = str(collab["_id"])
         return collabs
@@ -73,7 +72,7 @@ class Collaboration:
     @staticmethod
     def find_pending_by_candidate(candidate_id):
         """Get pending requests for a candidate"""
-        collabs = list(collaborations_collection.find({
+        collabs = list(collaborations_collection().find({
             "candidate_id": candidate_id,
             "status": "pending"
         }))
@@ -84,7 +83,7 @@ class Collaboration:
     @staticmethod
     def check_existing(project_id, candidate_id):
         """Check if collaboration already exists"""
-        return collaborations_collection.find_one({
+        return collaborations_collection().find_one({
             "project_id": project_id,
             "candidate_id": candidate_id
         })
@@ -92,7 +91,7 @@ class Collaboration:
     @staticmethod
     def accept_request(collaboration_id):
         """Accept a collaboration request"""
-        result = collaborations_collection.update_one(
+        result = collaborations_collection().update_one(
             {"_id": ObjectId(collaboration_id)},
             {"$set": {
                 "status": "accepted",
@@ -105,7 +104,7 @@ class Collaboration:
     @staticmethod
     def reject_request(collaboration_id):
         """Reject a collaboration request"""
-        result = collaborations_collection.update_one(
+        result = collaborations_collection().update_one(
             {"_id": ObjectId(collaboration_id)},
             {"$set": {
                 "status": "rejected",
@@ -117,7 +116,7 @@ class Collaboration:
     @staticmethod
     def get_team_members(project_id):
         """Get all accepted team members for a project"""
-        collabs = list(collaborations_collection.find({
+        collabs = list(collaborations_collection().find({
             "project_id": project_id,
             "status": "accepted"
         }))
@@ -128,7 +127,7 @@ class Collaboration:
     @staticmethod
     def leave_project(collaboration_id):
         """Member leaves the project"""
-        result = collaborations_collection.update_one(
+        result = collaborations_collection().update_one(
             {"_id": ObjectId(collaboration_id)},
             {"$set": {
                 "status": "left",
@@ -139,7 +138,7 @@ class Collaboration:
 
     @staticmethod
     def cancel_request(collaboration_id):
-        result = collaborations_collection.update_one(
+        result = collaborations_collection().update_one(
             {"_id": ObjectId(collaboration_id)},
             {"$set": {
                 "status": "cancelled",
@@ -151,7 +150,7 @@ class Collaboration:
     @staticmethod
     def get_user_projects(user_id):
         """Get all projects where user is a member"""
-        collabs = list(collaborations_collection.find({
+        collabs = list(collaborations_collection().find({
             "candidate_id": user_id,
             "status": "accepted"
         }))

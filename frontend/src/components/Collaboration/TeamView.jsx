@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collaborationAPI } from '../../services/api';
 import Button from '../Common/Button';
@@ -10,16 +10,7 @@ const TeamView = ({ project, onBack }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (project && project._id) {
-      fetchTeam();
-    } else {
-      setError('No project selected');
-      setLoading(false);
-    }
-  }, [project]);
-
-  const fetchTeam = async () => {
+  const fetchTeam = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -31,7 +22,16 @@ const TeamView = ({ project, onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [project]);
+
+  useEffect(() => {
+    if (project && project._id) {
+      fetchTeam();
+    } else {
+      setError('No project selected');
+      setLoading(false);
+    }
+  }, [fetchTeam, project]);
 
   if (loading) {
     return (

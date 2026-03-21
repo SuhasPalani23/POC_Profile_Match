@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import palette from "../../palette";
@@ -25,10 +25,6 @@ const MatchList = ({ user }) => {
   const [feedbackByUser, setFeedbackByUser] = useState({});
 
   const cardsRef = useRef([]);
-
-  useEffect(() => {
-    fetchData();
-  }, [projectId]);
 
   useEffect(() => {
     let raf;
@@ -63,7 +59,7 @@ const MatchList = ({ user }) => {
     return () => observer.disconnect();
   }, [matches]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError("");
     setSentRequests({});
@@ -88,7 +84,11 @@ const MatchList = ({ user }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleSendRequest = async (candidateId, isFounder) => {
     if (isFounder || sentRequests[candidateId]) return;

@@ -1,11 +1,10 @@
-from pymongo import MongoClient
-from config import Config
 from datetime import datetime
 from bson.objectid import ObjectId
+from db import get_collection
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-projects_collection = db['projects']
+
+def projects_collection():
+    return get_collection("projects")
 
 class Project:
     @staticmethod
@@ -23,7 +22,7 @@ class Project:
             "updated_at": datetime.utcnow()
         }
 
-        result = projects_collection.insert_one(project)
+        result = projects_collection().insert_one(project)
         project['_id'] = str(result.inserted_id)
         return project
 
@@ -33,7 +32,7 @@ class Project:
             return None
 
         try:
-            project = projects_collection.find_one({"_id": ObjectId(project_id)})
+            project = projects_collection().find_one({"_id": ObjectId(project_id)})
             if project:
                 project['_id'] = str(project['_id'])
             return project
@@ -43,14 +42,14 @@ class Project:
 
     @staticmethod
     def find_by_founder(founder_id):
-        projects = list(projects_collection.find({"founder_id": founder_id}))
+        projects = list(projects_collection().find({"founder_id": founder_id}))
         for project in projects:
             project['_id'] = str(project['_id'])
         return projects
 
     @staticmethod
     def update_status(project_id, live=True, status="approved"):
-        result = projects_collection.update_one(
+        result = projects_collection().update_one(
             {"_id": ObjectId(project_id)},
             {"$set": {"live": live, "status": status, "updated_at": datetime.utcnow()}}
         )
@@ -65,7 +64,7 @@ class Project:
             "created_at": datetime.utcnow()
         }
 
-        result = projects_collection.update_one(
+        result = projects_collection().update_one(
             {"_id": ObjectId(project_id)},
             {"$push": {"collaboration_requests": request}}
         )
@@ -74,7 +73,7 @@ class Project:
     @staticmethod
     def cache_matches(project_id, matches):
         """Cache match results so they are consistent on page refresh."""
-        result = projects_collection.update_one(
+        result = projects_collection().update_one(
             {"_id": ObjectId(project_id)},
             {"$set": {
                 "cached_matches": matches,
@@ -86,7 +85,7 @@ class Project:
 
     @staticmethod
     def clear_cached_matches(project_id):
-        result = projects_collection.update_one(
+        result = projects_collection().update_one(
             {"_id": ObjectId(project_id)},
             {"$set": {
                 "cached_matches": None,
@@ -98,7 +97,7 @@ class Project:
 
     @staticmethod
     def clear_all_cached_matches():
-        result = projects_collection.update_many(
+        result = projects_collection().update_many(
             {},
             {"$set": {
                 "cached_matches": None,
@@ -116,7 +115,7 @@ class Project:
             update_fields["cached_matches"] = None
             update_fields["matches_cached_at"] = None
 
-        result = projects_collection.update_one(
+        result = projects_collection().update_one(
             {"_id": ObjectId(project_id)},
             {"$set": update_fields}
         )
@@ -124,7 +123,7 @@ class Project:
 
     @staticmethod
     def get_all_live_projects():
-        projects = list(projects_collection.find({"live": True}))
+        projects = list(projects_collection().find({"live": True}))
         for project in projects:
             project['_id'] = str(project['_id'])
         return projects

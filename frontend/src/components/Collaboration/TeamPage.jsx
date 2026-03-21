@@ -40,7 +40,6 @@ const TeamPage = ({ user }) => {
     );
   }
 
-  const isFounder = team.founder.user_id === user._id;
   const totalMembers = 1 + (team.team_members?.length || 0);
 
   const MemberCard = ({ member, isFounderCard = false }) => (

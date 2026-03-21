@@ -1,16 +1,15 @@
-from pymongo import MongoClient
-from config import Config
 import bcrypt
 from datetime import datetime
+from db import get_collection
 
-client = MongoClient(Config.MONGODB_URI)
-db = client[Config.DB_NAME]
-users_collection = db['users']
+
+def users_collection():
+    return get_collection("users")
 
 class User:
     @staticmethod
-    def create(email, password, name, skills=None, bio="", role="user"):
-        if users_collection.find_one({"email": email}):
+    def create(email, password, name="", skills=None, bio="", role="user"):
+        if users_collection().find_one({"email": email}):
             return None
         
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -18,7 +17,7 @@ class User:
         user = {
             "email": email,
             "password": hashed_password,
-            "name": name,
+            "name": name or "",
             "skills": skills or [],
             "bio": bio,
             "role": role,
@@ -33,13 +32,13 @@ class User:
             "updated_at": datetime.utcnow()
         }
         
-        result = users_collection.insert_one(user)
+        result = users_collection().insert_one(user)
         user['_id'] = str(result.inserted_id)
         return user
     
     @staticmethod
     def find_by_email(email):
-        user = users_collection.find_one({"email": email})
+        user = users_collection().find_one({"email": email})
         if user:
             user['_id'] = str(user['_id'])
         return user
@@ -47,7 +46,7 @@ class User:
     @staticmethod
     def find_by_id(user_id):
         from bson.objectid import ObjectId
-        user = users_collection.find_one({"_id": ObjectId(user_id)})
+        user = users_collection().find_one({"_id": ObjectId(user_id)})
         if user:
             user['_id'] = str(user['_id'])
         return user
@@ -59,7 +58,7 @@ class User:
     @staticmethod
     def update_role(user_id, new_role):
         from bson.objectid import ObjectId
-        result = users_collection.update_one(
+        result = users_collection().update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"role": new_role, "updated_at": datetime.utcnow()}}
         )
@@ -72,7 +71,21 @@ class User:
         
         update_data['updated_at'] = datetime.utcnow()
         
-        result = users_collection.update_one(
+        result = users_collection().update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+        return result.modified_count > 0
+
+    @staticmethod
+    def replace_profile_fields(user_id, replacement_data, reset_defaults=None):
+        """Replace mutable profile fields with a fresh payload from scraping."""
+        from bson.objectid import ObjectId
+
+        update_data = {**(reset_defaults or {}), **(replacement_data or {})}
+        update_data['updated_at'] = datetime.utcnow()
+
+        result = users_collection().update_one(
             {"_id": ObjectId(user_id)},
             {"$set": update_data}
         )
@@ -87,7 +100,7 @@ class User:
         if role_filter:
             query["role"] = role_filter
         
-        users = list(users_collection.find(query))
+        users = list(users_collection().find(query))
         for user in users:
             user['_id'] = str(user['_id'])
             if 'password' in user:

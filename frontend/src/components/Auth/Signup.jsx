@@ -44,8 +44,6 @@ const Signup = ({ onSignup }) => {
     email: '',
     password: '',
     confirmPassword: '',
-    bio: '',
-    skills: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -97,17 +95,10 @@ const Signup = ({ onSignup }) => {
     }
 
     try {
-      const skillsArray = formData.skills
-        .split(',')
-        .map((skill) => skill.trim())
-        .filter((skill) => skill);
-
       const response = await authAPI.signup({
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        bio: formData.bio,
-        skills: skillsArray,
       });
 
       setToken(response.data.token);
@@ -184,7 +175,6 @@ const Signup = ({ onSignup }) => {
           {[
             { label: 'Full Name', name: 'name', type: 'text', required: true },
             { label: 'Email', name: 'email', type: 'email', required: true },
-            { label: 'Skills (comma-separated)', name: 'skills', type: 'text', required: false },
           ].map((field) => (
             <div key={field.name}>
               <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
@@ -309,28 +299,6 @@ const Signup = ({ onSignup }) => {
                 Caps Lock is on
               </p>
             )}
-          </div>
-
-          <div>
-            <label className="mono-label" style={{ display: 'block', marginBottom: palette.spacing.sm }}>
-              Bio
-            </label>
-            <textarea
-              name="bio"
-              value={formData.bio}
-              onChange={handleChange}
-              rows={3}
-              placeholder="Tell us about yourself and your founding mindset..."
-              style={{ ...inputBaseStyle, resize: 'vertical', fontFamily: palette.typography.fontFamily.primary }}
-              onFocus={(e) => {
-                e.target.style.borderBottomColor = palette.colors.primary.cyan;
-                e.target.style.boxShadow = `0 2px 0 ${palette.colors.primary.cyan}`;
-              }}
-              onBlur={(e) => {
-                e.target.style.borderBottomColor = '#333333';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
           </div>
 
           <Button type="submit" loading={loading} fullWidth>

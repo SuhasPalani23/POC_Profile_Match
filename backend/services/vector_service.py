@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone, ServerlessSpec
 from config import Config
+import json
 
 
 class VectorService:
@@ -51,35 +52,89 @@ class VectorService:
     def _user_to_text(self, user: Dict) -> str:
         """
         Build a rich text representation of a user so the embedding captures
-        everything meaningful: bio, skills, title, resume content, location.
-        All uploaded content (resume text, etc.) is included here so Pinecone
-        always has the latest full picture of each user.
+        everything meaningful: bio, skills, title, resume content, location,
+        and new LinkedIn profile fields.
         """
         parts = []
 
+        if user.get("name"):
+            parts.append(f"Name: {user['name']}")
+        elif user.get("firstName"):
+            parts.append(f"Name: {user.get('firstName', '')} {user.get('lastName', '')}")
+
+        if user.get("headline"):
+            parts.append(f"Headline: {user['headline']}")
+
+        if user.get("currentCompany"):
+            parts.append(f"Current Company: {user['currentCompany']}")
+            
+        if user.get("professional_title"):
+            parts.append(f"Role: {user['professional_title']}")
+            
         if user.get("bio"):
             parts.append(f"Bio: {user['bio']}")
+            
+        if user.get("about"):
+            parts.append(f"About: {user['about']}")
 
         skills = user.get("skills", [])
         if skills:
             parts.append(f"Skills: {', '.join(skills)}")
 
-        if user.get("professional_title"):
-            parts.append(f"Role: {user['professional_title']}")
+        loc_parts = [str(p).strip() for p in [user.get("city"), user.get("state"), user.get("country")] if p]
+        if loc_parts:
+            parts.append(f"Location: {', '.join(loc_parts)}")
+        elif user.get("location"):
+            parts.append(f"Location: {self._stringify_metadata_value(user['location'])}")
 
-        if user.get("location"):
-            parts.append(f"Location: {user['location']}")
-
-        exp = user.get("experience_years", 0)
+        exp = user.get("totalYearsExperience", user.get("experience_years", 0))
         if exp:
             parts.append(f"Experience: {exp} years")
+            
+        education = user.get("education", [])
+        if education:
+            edu_str = ", ".join([f"{e.get('degree', '')} at {e.get('institution', '')}" for e in education])
+            parts.append(f"Education: {edu_str}")
 
-        # Include resume text if it has been parsed and stored on the user doc
         if user.get("resume_text"):
-            # Truncate to avoid token limits — first 2000 chars is plenty for embedding
             parts.append(f"Resume: {user['resume_text'][:2000]}")
 
-        return " | ".join(parts) if parts else user.get("name", "")
+        return " | ".join(parts) if parts else user.get("name", "Unknown Profile")
+
+    def _stringify_metadata_value(self, value):
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return value
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if isinstance(item, (str, int, float, bool)) and str(item).strip()]
+        if isinstance(value, dict):
+            ordered = [value.get("city"), value.get("state"), value.get("country")]
+            parts = [str(part).strip() for part in ordered if part not in [None, ""] and str(part).strip()]
+            if parts:
+                return ", ".join(parts)
+            return json.dumps(value, ensure_ascii=False, sort_keys=True)
+        return str(value).strip()
+
+    def _normalize_metadata(self, user: Dict) -> Dict:
+        location_value = self._stringify_metadata_value(
+            ", ".join(
+                str(part).strip()
+                for part in [user.get("city"), user.get("state"), user.get("country")]
+                if part not in [None, ""] and str(part).strip()
+            ) or user.get("location", "")
+        )
+        return {
+            "name": self._stringify_metadata_value(user.get("name", "")),
+            "email": self._stringify_metadata_value(user.get("email", "")),
+            "professional_title": self._stringify_metadata_value(user.get("professional_title", "")),
+            "skills": self._stringify_metadata_value(user.get("skills", [])),
+            "experience_years": int(user.get("experience_years", 0) or 0),
+            "location": location_value,
+            "has_resume": bool(user.get("resume")),
+        }
 
     def _embed(self, text: str) -> List[float]:
         return self.model.encode(text).tolist()
@@ -106,16 +161,7 @@ class VectorService:
             user_id = str(user["_id"])
             text = self._user_to_text(user)
             vector = self._embed(text)
-
-            metadata = {
-                "name": user.get("name", ""),
-                "email": user.get("email", ""),
-                "professional_title": user.get("professional_title", ""),
-                "skills": user.get("skills", []),
-                "experience_years": user.get("experience_years", 0),
-                "location": user.get("location", ""),
-                "has_resume": bool(user.get("resume")),
-            }
+            metadata = self._normalize_metadata(user)
 
             self.index.upsert(vectors=[(user_id, vector, metadata)])
             print(f"[VectorService] Upserted user {user_id} ({user.get('name', '')})")
@@ -145,15 +191,7 @@ class VectorService:
                 upsert_data = []
                 for user, vector in zip(batch_users, batch_vectors):
                     user_id = str(user["_id"])
-                    metadata = {
-                        "name": user.get("name", ""),
-                        "email": user.get("email", ""),
-                        "professional_title": user.get("professional_title", ""),
-                        "skills": user.get("skills", []),
-                        "experience_years": user.get("experience_years", 0),
-                        "location": user.get("location", ""),
-                        "has_resume": bool(user.get("resume")),
-                    }
+                    metadata = self._normalize_metadata(user)
                     upsert_data.append((user_id, vector, metadata))
 
                 self.index.upsert(vectors=upsert_data)
