@@ -18,3 +18,4 @@ Werkzeug
 eventlet
 requests
 groq
+openai

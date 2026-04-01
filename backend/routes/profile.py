@@ -21,10 +21,11 @@ from collections import Counter
 from datetime import datetime
 from utils.validation import validate_required_fields
 from services.background_tasks import enqueue
-from groq import Groq
+from openai import OpenAI
 from config import Config
+from services.openai_service import analyze_posts_deeply, founder_chatbot_respond
 
-groq_client = Groq(api_key=Config.GROQ_API_KEY)
+openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
 
 profile_bp = Blueprint("profile", __name__)
 ats_service = ATSService()
@@ -94,6 +95,7 @@ PROFILE_ALLOWED_FIELDS = [
     "publications", "extraFields", "tools", "coreDomains", "interests",
     "industryInclination", "skillStrength", "careerGoals", "preferredRole",
     "preferredIndustry", "strengths", "weaknesses", "workStyle", "openToWork", "hobbies",
+    "extraFields", "dynamicFieldLabels",
 ]
 
 PROFILE_RESET_DEFAULTS = {
@@ -880,6 +882,15 @@ def _infer_field_from_latest_reply(latest_text: str, remaining_fields: list[str]
 @profile_bp.route("/scrape-linkedin", methods=["POST"])
 @token_required
 def scrape_linkedin(current_user):
+    # Require LinkedIn OAuth consent before scraping
+    if not current_user.get('linkedinAuthed'):
+        return api_error(
+            "LINKEDIN_AUTH_REQUIRED",
+            "You must login with LinkedIn before scraping. Please authenticate via LinkedIn first.",
+            403,
+            {"requiresLinkedinAuth": True}
+        )
+
     data = request.json
     linkedin_url = (data.get('linkedinUrl') or '').strip().rstrip('/')
 
@@ -901,6 +912,26 @@ def scrape_linkedin(current_user):
     else:
         full_url = linkedin_url
         username = linkedin_url.split('/')[-1]
+
+    # Enforce own-profile-only: the user consented to scrape THEIR profile,
+    # not someone else's. Compare against the user's known LinkedIn URL.
+    user_linkedin = (
+        current_user.get('linkedinUrl')
+        or current_user.get('linkedin')
+        or ''
+    ).strip().rstrip('/').lower()
+    # Extract username from the user's stored LinkedIn URL for comparison
+    user_m = _re.search(r"linkedin\.com/in/([^/?#\s]+)", user_linkedin)
+    user_username = user_m.group(1).lower() if user_m else ''
+
+    # Allow scrape if: (a) no stored URL yet (first time), or (b) URLs match
+    if user_linkedin and user_username and username.lower() != user_username:
+        return api_error(
+            "LINKEDIN_URL_MISMATCH",
+            f"You can only scrape your own LinkedIn profile. You authenticated as '{user_username}' but requested '{username}'.",
+            403,
+            {"authenticatedUsername": user_username, "requestedUsername": username}
+        )
 
     PROFILE_ACTOR = os.getenv(
         "APIFY_ACTOR_ID",
@@ -960,11 +991,9 @@ def scrape_linkedin(current_user):
         posts_section += "\n".join(f"- {t[:200]}" for t in posts_text_list[:5])
 
     # Send the raw Apify profile directly to the LLM.
-    # Groq has a 128K context window - it can handle the full JSON.
-    # Avoid any field-name guessing in compression logic.
-    # Truncate only the very large text fields to stay within reasonable limits.
+    # Truncate large text fields to stay within token limits.
     def _safe_dump(raw):
-        """Trim the prompt payload so enrichment stays under Groq limits."""
+        """Trim the prompt payload to stay within OpenAI limits."""
         def _trim(value, depth=0):
             if isinstance(value, str):
                 limit = 1200 if depth <= 1 else 500
@@ -1043,9 +1072,8 @@ SCRAPED POSTS DATA:
     # ---- Call Llama with retry backoff (best-effort) ----
     #
     # IMPORTANT:
-    # Llama via Groq can return 429 (RESOURCE_EXHAUSTED) for quota/billing/project limits.
-    # This is not "fixed" by rotating keys if the underlying project quota is exhausted.
-    # For product UX, we treat LLM enrichment as best-effort and fall back to direct
+    # OpenAI can return 429 (rate limit) or other transient errors.
+    # We treat LLM enrichment as best-effort and fall back to direct
     # parsing of Apify output so the scrape flow still works.
     def _is_ai_rate_limit(err_text: str) -> bool:
         t = (err_text or "").upper()
@@ -1061,11 +1089,11 @@ SCRAPED POSTS DATA:
     MAX_RETRIES = 3
     for attempt in range(MAX_RETRIES):
         try:
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            response = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_completion_tokens=5000,
+                max_tokens=5000,
                 response_format={"type": "json_object"}
             )
             print(f"[scrape_linkedin] LLM OK (attempt {attempt+1}). Response len={len(response.choices[0].message.content)}")
@@ -1131,6 +1159,72 @@ SCRAPED POSTS DATA:
             if field in {"skills", "tools", "coreDomains", "interests"}:
                 missing_fields.append(field)
 
+    # ---- Deep post analysis via OpenAI (best-effort) ----
+    deep_post_insights = {}
+    if posts_items and Config.OPENAI_API_KEY:
+        try:
+            deep_post_insights = analyze_posts_deeply(
+                posts_items,
+                profile_context={
+                    "name": extracted.get("firstName", "") + " " + extracted.get("lastName", ""),
+                    "headline": extracted.get("headline", ""),
+                    "skills": extracted.get("skills", []),
+                }
+            )
+            print(f"[scrape_linkedin] Deep post insights keys: {list(deep_post_insights.keys())}")
+
+            # Merge discovered skills/tools/domains into extracted
+            for field, key in [("skills", "discoveredSkills"), ("tools", "tools"), ("coreDomains", "coreDomains"), ("interests", "areasOfInterest")]:
+                new_vals = deep_post_insights.get(key, [])
+                if new_vals and isinstance(new_vals, list):
+                    existing = extracted.get(field, [])
+                    if isinstance(existing, str):
+                        existing = [s.strip() for s in existing.split(",") if s.strip()]
+                    merged = list(dict.fromkeys(existing + new_vals))
+                    extracted[field] = merged
+
+            # Auto-create certifications from posts if not already present
+            post_certs = deep_post_insights.get("certifications", [])
+            if post_certs:
+                existing_certs = extracted.get("certifications", [])
+                existing_cert_names = {str(c.get("name", c) if isinstance(c, dict) else c).lower() for c in existing_certs}
+                for cert in post_certs:
+                    if cert.lower() not in existing_cert_names:
+                        existing_certs.append({"name": cert, "source": "linkedin_posts"})
+                extracted["certifications"] = existing_certs
+
+        except Exception as e:
+            print(f"[scrape_linkedin] Deep post analysis non-fatal error: {e}")
+
+    # Build extraFields from deep insights
+    extra_fields = extracted.get("extraFields", {}) or {}
+    if deep_post_insights:
+        dynamic = deep_post_insights.get("dynamicFields", {})
+        if isinstance(dynamic, dict):
+            extra_fields.update(dynamic)
+        for insight_key in ["thoughtLeadershipTopics", "communityInvolvement", "projectsMentioned", "achievementSignals", "industryFocus"]:
+            val = deep_post_insights.get(insight_key, [])
+            if val:
+                extra_fields[insight_key] = val if isinstance(val, list) else str(val)
+        if deep_post_insights.get("contentStyle"):
+            extra_fields["content_style"] = deep_post_insights["contentStyle"]
+        if deep_post_insights.get("expertiseLevel"):
+            extra_fields["expertise_level"] = deep_post_insights["expertiseLevel"]
+    extracted["extraFields"] = extra_fields
+
+    # Build dynamic field labels for the frontend
+    dynamic_field_labels = {}
+    if deep_post_insights.get("dynamicFields"):
+        for k in deep_post_insights["dynamicFields"]:
+            dynamic_field_labels[k] = k.replace("_", " ").title()
+    for insight_key in ["thoughtLeadershipTopics", "communityInvolvement", "projectsMentioned", "achievementSignals", "industryFocus"]:
+        if extra_fields.get(insight_key):
+            dynamic_field_labels[insight_key] = insight_key.replace("_", " ").replace("Topics", " Topics").title().strip()
+    if extra_fields.get("content_style"):
+        dynamic_field_labels["content_style"] = "Content Style"
+    if extra_fields.get("expertise_level"):
+        dynamic_field_labels["expertise_level"] = "Expertise Level"
+
     replacement_fields = {k: extracted.get(k) for k in PROFILE_ALLOWED_FIELDS if k in extracted}
     if replacement_fields.get("experience_years") in [None, ""] and replacement_fields.get("totalYearsExperience"):
         match = _re.search(r"\d+", str(replacement_fields.get("totalYearsExperience")))
@@ -1141,53 +1235,41 @@ SCRAPED POSTS DATA:
             replacement_fields[field] = identity_overrides[field]
     replacement_fields = _normalize_profile_payload(replacement_fields)
     replacement_fields["scrapedAt"] = datetime.utcnow()
+    replacement_fields["extraFields"] = extra_fields
+    replacement_fields["dynamicFieldLabels"] = dynamic_field_labels
 
-    persisted = True
-    persistence_error = None
-    updated_user = None
-    try:
-        User.replace_profile_fields(
-            current_user["_id"],
-            replacement_fields,
-            reset_defaults=PROFILE_RESET_DEFAULTS,
+    # ── Validate scraped profile matches the OAuth identity ──
+    oauth_name = (current_user.get('linkedinOAuthName') or '').strip().lower()
+    scraped_name = f"{extracted.get('firstName', '')} {extracted.get('lastName', '')}".strip().lower()
+    if oauth_name and scraped_name and oauth_name.split()[0] != scraped_name.split()[0]:
+        # First name doesn't match — this isn't their profile
+        return api_error(
+            "IDENTITY_MISMATCH",
+            f"The scraped profile ({extracted.get('firstName', '')} {extracted.get('lastName', '')}) doesn't match your LinkedIn account ({current_user.get('linkedinOAuthName', '')}). You can only scrape your own profile.",
+            403,
         )
 
-        core_fields = ['firstName', 'lastName', 'headline', 'skills', 'about', 'currentPosition', 'currentCompany', 'email']
-        filled_count = sum(1 for field in core_fields if replacement_fields.get(field) not in [None, "", [], {}])
-        score = int((filled_count / len(core_fields)) * 100)
-        User.update_profile(current_user["_id"], {"profileCompletionScore": score})
-
-        updated_user = User.find_by_id(current_user["_id"])
-        if updated_user:
-            updated_user.pop("password", None)
-
-        _start_vector_upsert(current_user["_id"])
-        Project.clear_all_cached_matches()
-    except Exception as exc:
-        persisted = False
-        persistence_error = str(exc)
-        print(f"[scrape_linkedin] Non-fatal persistence error: {exc}")
+    # ── DO NOT save to DB or index here ──
+    # Scraped data is returned to the frontend only.
+    # Nothing persists until the user explicitly clicks "Save Profile".
+    # This ensures privacy — scraped data is client-side only until saved.
 
     return api_success(
         {
             "profileData": extracted,
-            "user": updated_user,
-            "persisted": persisted,
-            "persistenceError": persistence_error,
             "missingFields": missing_fields,
             "postsScraped": len(posts_items),
             "aiEnrichmentUsed": response is not None and ai_error_code is None,
             "aiStatus": "ok" if (response is not None and ai_error_code is None) else "degraded",
             "aiErrorCode": ai_error_code,
             "aiErrorMessage": ai_error_message,
+            "deepPostInsights": deep_post_insights,
+            "extraFields": extra_fields,
+            "dynamicFieldLabels": dynamic_field_labels,
         },
-        (
-            "Profile scraped successfully"
-            if ai_error_code is None and persisted
-            else "Profile scraped (AI enrichment unavailable)"
-            if ai_error_code is not None and persisted
-            else "Profile scraped, but saving to the database is temporarily unavailable"
-        ),
+        "Profile scraped successfully — review and click Save to persist"
+        if ai_error_code is None
+        else "Profile scraped (AI enrichment unavailable) — review and click Save to persist",
     )
 
 
@@ -1283,11 +1365,11 @@ JSON schema:
     ]
 
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=messages,
             temperature=0.2,
-            max_completion_tokens=900,
+            max_tokens=900,
             response_format={"type": "json_object"}
         )
         raw_content = response.choices[0].message.content.strip()
@@ -1356,6 +1438,57 @@ JSON schema:
         if "503" in err or "UNAVAILABLE" in err:
             return api_error("AI_BUSY", "AI model is busy. Please try again in a moment.", 503)
         return api_error("AI_ERROR", f"Chat AI failed: {err}", 500)
+
+
+# ------------------------------------------------------------------
+# POST /profile/founder-chat  (OpenAI-powered founder profiling chatbot)
+# ------------------------------------------------------------------
+
+@profile_bp.route("/founder-chat", methods=["POST"])
+@token_required
+def founder_chat(current_user):
+    """LLM-driven chatbot that collects founder/cofounder profiling data dynamically."""
+    data = request.json or {}
+    chat_history = data.get('messages', [])
+    profile_ctx = data.get('profileContext', {}) or {}
+    discovered_fields = data.get('discoveredFields', {}) or {}
+
+    # Load existing extraFields from user
+    existing_extra = current_user.get('extraFields', {}) or {}
+    existing_labels = current_user.get('dynamicFieldLabels', {}) or {}
+
+    if not Config.OPENAI_API_KEY:
+        return api_error("CONFIG_ERROR", "OpenAI API key not configured", 500)
+
+    result = founder_chatbot_respond(
+        chat_history=chat_history,
+        profile_context=profile_ctx,
+        discovered_fields=discovered_fields,
+        extra_fields=existing_extra,
+    )
+
+    # Merge extracted fields — return to client only, DO NOT save to DB here.
+    # Everything persists only when the user clicks "Save Profile".
+    new_fields = result.get("extractedFields", {})
+    new_labels = result.get("fieldLabels", {})
+    if new_fields:
+        merged_extra = {**existing_extra, **new_fields}
+        merged_labels = {**existing_labels, **new_labels}
+    else:
+        merged_extra = existing_extra
+        merged_labels = existing_labels
+
+    print(f"[founder_chat] extractedFields={new_fields}  allExtraFields keys={list(merged_extra.keys())}")
+
+    return api_success({
+        "reply": result.get("message", ""),
+        "extractedFields": new_fields,
+        "fieldLabels": new_labels,
+        "allExtraFields": merged_extra,
+        "allFieldLabels": merged_labels,
+        "nextQuestion": result.get("nextQuestion", ""),
+        "conversationComplete": result.get("conversationComplete", False),
+    })
 
 
 # ------------------------------------------------------------------

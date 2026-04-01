@@ -1,13 +1,17 @@
-from groq import Groq
+"""LLM service — now powered by OpenAI (replaces Groq/Llama)."""
+
+from openai import OpenAI
 from config import Config
 import json
 import re
 
 
 class LlamaService:
+    """Retained class name for backwards compatibility with matching_service and ats_service."""
+
     def __init__(self):
-        self.client = Groq(api_key=Config.GROQ_API_KEY)
-        self.model = "llama-3.1-8b-instant"
+        self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        self.model = "gpt-4o-mini"
 
     def _extract_json(self, text):
         try:
@@ -31,6 +35,7 @@ class LlamaService:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
+                response_format={"type": "json_object"},
             )
             return self._extract_json(response.choices[0].message.content)
         except Exception as e:
@@ -87,15 +92,15 @@ Pre-analyzed Project Requirements:
         for i, candidate in enumerate(candidates):
             resume_section = ""
             if candidate.get("resume_text"):
-                resume_section = f"\nResume Content:\n{candidate['resume_text']}"
+                resume_section = f"\nResume Content:\n{candidate['resume_text'][:2000]}"
 
             candidate_blocks += f"""
 Candidate {i}:
 - Name: {candidate.get('name', '')}
 - Professional Title: {candidate.get('professional_title', '')}
-- Skills: {', '.join(candidate.get('skills', []))}
+- Skills: {', '.join(candidate.get('skills', [])[:20])}
 - Experience: {candidate.get('experience_years', 0)} years
-- Bio: {candidate.get('bio', '')}{resume_section}
+- Bio: {candidate.get('bio', '')[:500]}{resume_section}
 """
 
         prompt = f"""
@@ -106,7 +111,7 @@ Your task: score each candidate's fit for this project and assign a match_percen
 
 Project Title: {project.get('title', '')}
 Project Description:
-{project.get('description', '')}
+{project.get('description', '')[:3000]}
 {requirements_context}
 
 Score each candidate on these criteria:

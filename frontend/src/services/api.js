@@ -80,6 +80,13 @@ export const profileAPI = {
   analyzeResume: () => api.post("/profile/analyze-resume"),
   getATSScore: (projectId) => api.get(`/profile/ats-score/${projectId}`),
   getSkillsSuggestions: (data) => api.post("/profile/skills-suggestions", data),
+  founderChat: (data) => api.post("/profile/founder-chat", data),
+};
+
+export const linkedinAuthAPI = {
+  getConsentUrl: () => api.post("/auth/linkedin/consent-url"),
+  getStatus: () => api.get("/auth/linkedin/status"),
+  disconnect: () => api.post("/auth/linkedin/disconnect"),
 };
 
 export const collaborationAPI = {

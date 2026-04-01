@@ -22,7 +22,7 @@ class Config:
     RATE_LIMIT_WINDOW_SECONDS = int(os.getenv('RATE_LIMIT_WINDOW_SECONDS', '60'))
     RATE_LIMIT_MAX_REQUESTS = int(os.getenv('RATE_LIMIT_MAX_REQUESTS', '120'))
     RATE_LIMIT_AUTH_WINDOW_SECONDS = int(os.getenv('RATE_LIMIT_AUTH_WINDOW_SECONDS', '60'))
-    RATE_LIMIT_AUTH_MAX_REQUESTS = int(os.getenv('RATE_LIMIT_AUTH_MAX_REQUESTS', '20'))
+    RATE_LIMIT_AUTH_MAX_REQUESTS = int(os.getenv('RATE_LIMIT_AUTH_MAX_REQUESTS', '40'))
     JWT_EXPIRATION_HOURS = 24
     MAX_RESUME_SIZE = 10 * 1024 * 1024  # 10MB
     RESUME_UPLOAD_FOLDER = 'data/resumes'
@@ -31,3 +31,11 @@ class Config:
     PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
     PINECONE_INDEX_NAME = os.getenv('PINECONE_INDEX_NAME', 'talent-match')
     PINECONE_ENVIRONMENT = os.getenv('PINECONE_ENVIRONMENT', 'us-east-1')
+
+    # OpenAI
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+    # LinkedIn OAuth
+    LINKEDIN_CLIENT_ID = os.getenv('LINKEDIN_CLIENT_ID')
+    LINKEDIN_CLIENT_SECRET = os.getenv('LINKEDIN_CLIENT_SECRET')
+    LINKEDIN_REDIRECT_URI = os.getenv('LINKEDIN_REDIRECT_URI', 'http://localhost:5001/api/auth/linkedin/callback')

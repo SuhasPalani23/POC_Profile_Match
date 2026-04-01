@@ -1,17 +1,18 @@
 import os
 from typing import List, Dict, Optional
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 from config import Config
 import json
 
 
 class VectorService:
-    # Embedding dimension for 'all-MiniLM-L6-v2'
-    DIMENSION = 384
+    # Embedding dimension for OpenAI text-embedding-3-small
+    DIMENSION = 1536
 
     def __init__(self):
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
+        self.embedding_model = "text-embedding-3-small"
 
         # --- Pinecone init ---
         api_key = os.getenv("PINECONE_API_KEY")
@@ -99,6 +100,17 @@ class VectorService:
         if user.get("resume_text"):
             parts.append(f"Resume: {user['resume_text'][:2000]}")
 
+        # Include dynamic fields from chatbot/post analysis for richer matching
+        extra = user.get("extraFields", {})
+        if extra and isinstance(extra, dict):
+            extra_parts = []
+            for k, v in extra.items():
+                if v and v not in [[], {}, ""]:
+                    val = ", ".join(v) if isinstance(v, list) else str(v)
+                    extra_parts.append(f"{k.replace('_', ' ')}: {val}")
+            if extra_parts:
+                parts.append(f"Insights: {' | '.join(extra_parts[:15])}")
+
         return " | ".join(parts) if parts else user.get("name", "Unknown Profile")
 
     def _stringify_metadata_value(self, value):
@@ -137,10 +149,18 @@ class VectorService:
         }
 
     def _embed(self, text: str) -> List[float]:
-        return self.model.encode(text).tolist()
+        response = self.openai_client.embeddings.create(
+            model=self.embedding_model,
+            input=text,
+        )
+        return response.data[0].embedding
 
     def _embed_batch(self, texts: List[str]) -> List[List[float]]:
-        return self.model.encode(texts).tolist()
+        response = self.openai_client.embeddings.create(
+            model=self.embedding_model,
+            input=texts,
+        )
+        return [item.embedding for item in response.data]
 
     # ------------------------------------------------------------------
     # Core CRUD operations
