@@ -144,10 +144,15 @@ RESPONSE FORMAT - Return ONLY this JSON:
   }}
 }}
 
-RULES:
-- `extractedFields` must capture structured data from the user's latest response
-- Field names should be descriptive snake_case (e.g., "hours_per_week", "equity_preference")
-- `fieldLabels` maps each extracted field to a human-readable label for display
+CRITICAL RULES:
+- EVERY user message MUST result in at least one field in `extractedFields`. If the user says "40", extract it as the answer to whatever you just asked.
+- `extractedFields` must ALWAYS capture structured data from the user's latest response. NEVER return an empty `extractedFields` if the user gave any answer.
+- Field names should be descriptive snake_case (e.g., "hours_per_week", "equity_preference", "risk_tolerance")
+- `fieldLabels` MUST have a human-readable label for EVERY key in `extractedFields`
+- Examples:
+  - User says "40" after you ask about hours → extractedFields: {{"hours_per_week": "40"}}, fieldLabels: {{"hours_per_week": "Hours Per Week"}}
+  - User says "compensation" after equity question → extractedFields: {{"compensation_preference": "compensation over equity"}}, fieldLabels: {{"compensation_preference": "Compensation Preference"}}
+  - User says "high risk" → extractedFields: {{"risk_tolerance": "high"}}, fieldLabels: {{"risk_tolerance": "Risk Tolerance"}}
 - Ask follow-up questions based on interesting answers
 - Be warm, professional, and genuinely curious
 - If the user seems done or has answered enough (15+ fields collected), wrap up gracefully
@@ -158,9 +163,6 @@ RULES:
     for msg in chat_history:
         role = "user" if msg.get('role') == "user" else "assistant"
         content = msg.get('text', '')
-        if role == "assistant":
-            # Wrap assistant messages as if they were the message field
-            content = json.dumps({"message": content})
         messages.append({"role": role, "content": content})
 
     try:

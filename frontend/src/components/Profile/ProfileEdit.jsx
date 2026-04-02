@@ -190,13 +190,19 @@ function CompletionRing({ score }) {
   );
 }
 
-/* ─── Dynamic Field Chip (animated entry) ─── */
+/* ─── Dynamic Field Card (animated, auto-textarea for long values) ─── */
 function DynamicFieldCard({ label: fieldLabel, value, onChange, isNew }) {
   const displayValue = Array.isArray(value) ? value.join(', ') : String(value || '');
+  const isLong = displayValue.length > 50 || displayValue.includes(',');
+  const filledStyle = { ...inputStyle, color: displayValue ? txt : txt2 };
   return (
-    <div style={{ animation: isNew ? 'fieldPop 0.5s ease-out' : 'none' }}>
+    <div style={{ animation: isNew ? 'fieldPop 0.5s ease-out' : 'none', marginBottom: '0.25rem' }}>
       <Field text={fieldLabel}>
-        <input value={displayValue} onChange={onChange} style={inputStyle} />
+        {isLong ? (
+          <textarea value={displayValue} onChange={onChange} placeholder="Not answered yet..." style={{ ...filledStyle, minHeight: 60, resize: 'vertical' }} />
+        ) : (
+          <input value={displayValue} onChange={onChange} placeholder="Not answered yet..." style={filledStyle} title={displayValue} />
+        )}
       </Field>
     </div>
   );
@@ -234,26 +240,46 @@ export default function ProfileEdit({ user, onUpdate }) {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Dynamic fields
+  // Dynamic fields — split into scrape-discovered vs chatbot-collected
   const [extraFields, setExtraFields] = useState(user.extraFields || {});
   const [dynamicFieldLabels, setDynamicFieldLabels] = useState(user.dynamicFieldLabels || {});
   const [discoveredFields, setDiscoveredFields] = useState({});
+  // Restore chatbot answers from DB on load using the stored key list
+  const [chatbotAnswers, setChatbotAnswers] = useState(() => {
+    const keys = user.chatbotFieldKeys || [];
+    const extra = user.extraFields || {};
+    const restored = {};
+    keys.forEach(k => { if (extra[k] !== undefined) restored[k] = extra[k]; });
+    return restored;
+  });
+  const [chatbotLabels, setChatbotLabels] = useState(() => {
+    const keys = user.chatbotFieldKeys || [];
+    const labels = user.dynamicFieldLabels || {};
+    const restored = {};
+    keys.forEach(k => { if (labels[k]) restored[k] = labels[k]; });
+    return restored;
+  });
   const [newFieldKeys, setNewFieldKeys] = useState(new Set());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Profile completion — computed dynamically from all filled fields
   const profileCompletionScore = useMemo(() => {
-    const coreFields = ['firstName', 'lastName', 'headline', 'email', 'about', 'currentPosition', 'skills', 'linkedinUrl'];
-    const bonusFields = ['tools', 'coreDomains', 'interests', 'totalYearsExperience', 'workStyle', 'careerGoals', 'preferredRole', 'github', 'phone', 'currentCompany', 'strengths'];
-    const coreFilled = coreFields.filter(f => !blank(formData[f])).length;
-    const bonusFilled = bonusFields.filter(f => !blank(formData[f])).length;
-    const extraFilled = Object.values(extraFields).filter(v => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)).length;
-    // Core: 60%, Bonus: 25%, Extra: 15% (up to 10 fields counted)
-    const coreScore = (coreFilled / coreFields.length) * 60;
-    const bonusScore = (bonusFilled / bonusFields.length) * 25;
-    const extraScore = Math.min(extraFilled, 10) / 10 * 15;
-    return Math.min(100, Math.round(coreScore + bonusScore + extraScore));
-  }, [formData, extraFields]);
+    // Must-have fields (40% weight)
+    const mustHave = ['firstName', 'lastName', 'headline', 'email', 'linkedinUrl'];
+    const mustFilled = mustHave.filter(f => !blank(formData[f])).length;
+    // Profile fields from scraping (30% weight)
+    const profileFields = ['about', 'currentPosition', 'skills', 'tools', 'coreDomains', 'totalYearsExperience', 'workStyle'];
+    const profileFilled = profileFields.filter(f => !blank(formData[f])).length;
+    // Chatbot answers specifically (30% weight) — scrape insights don't count here
+    // Only fields the user answered via chatbot count toward this
+    const chatbotCount = Object.keys(chatbotAnswers).length;
+
+    const mustScore = (mustFilled / mustHave.length) * 40;
+    const profileScore = (profileFilled / profileFields.length) * 30;
+    // 5+ chatbot answers = full 30% credit
+    const chatbotScore = Math.min(chatbotCount, 5) / 5 * 30;
+    return Math.min(100, Math.round(mustScore + profileScore + chatbotScore));
+  }, [formData, chatbotAnswers]);
 
   // Track whether we already auto-filled from OAuth redirect
   const [oauthAutoFilled, setOauthAutoFilled] = useState(false);
@@ -269,8 +295,15 @@ export default function ProfileEdit({ user, onUpdate }) {
         setOauthAutoFilled(true);
       }
       const nameFromCallback = params.get('linkedin_name');
-      if (nameFromCallback) setAuthedName(nameFromCallback);
-      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}! Enter your LinkedIn URL and scrape.`);
+      if (nameFromCallback) {
+        setAuthedName(nameFromCallback);
+        // Auto-suggest URL from name if no URL came back from callback
+        if (!urlFromCallback) {
+          const suggested = `https://www.linkedin.com/in/${nameFromCallback.toLowerCase().replace(/\s+/g, '')}`;
+          setLinkedinUrlInput(suggested);
+        }
+      }
+      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}! Confirm your URL and scrape.`);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('linkedin_error')) {
       setError(`LinkedIn login failed: ${params.get('linkedin_error')}`);
@@ -283,9 +316,14 @@ export default function ProfileEdit({ user, onUpdate }) {
       if (data?.linkedinOAuthName) setAuthedName(data.linkedinOAuthName);
       if (data?.linkedinOAuthEmail) setAuthedEmail(data.linkedinOAuthEmail);
       if (data?.linkedinUrl) {
+        // URL already stored from previous scrape — lock it
         setAuthedLinkedinUrl(data.linkedinUrl);
         setLinkedinUrlInput(data.linkedinUrl);
         setOauthAutoFilled(true);
+      } else if (data?.linkedinAuthed && data?.linkedinOAuthName) {
+        // No stored URL yet — auto-suggest from OAuth name so user doesn't have to type
+        const suggested = `https://www.linkedin.com/in/${data.linkedinOAuthName.toLowerCase().replace(/\s+/g, '')}`;
+        setLinkedinUrlInput(suggested);
       }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -402,24 +440,17 @@ export default function ProfileEdit({ user, onUpdate }) {
 
       // Use allExtraFields (full merged state from DB) if available,
       // otherwise merge newFields into local state
-      if (Object.keys(newFields).length > 0) setHasUnsavedChanges(true);
-      if (allExtra && Object.keys(allExtra).length > 0) {
-        const addedKeys = Object.keys(newFields);
-        if (addedKeys.length > 0) {
-          setNewFieldKeys(new Set(addedKeys));
-          setTimeout(() => setNewFieldKeys(new Set()), 3000);
-        }
-        setExtraFields(allExtra);
-      } else if (Object.keys(newFields).length > 0) {
+      if (Object.keys(newFields).length > 0) {
+        setHasUnsavedChanges(true);
+        setChatbotAnswers(prev => ({ ...prev, ...newFields }));
+        setChatbotLabels(prev => ({ ...prev, ...newLabels }));
         setNewFieldKeys(new Set(Object.keys(newFields)));
         setTimeout(() => setNewFieldKeys(new Set()), 3000);
-        setExtraFields(prev => ({ ...prev, ...newFields }));
       }
-      if (allLabels && Object.keys(allLabels).length > 0) {
-        setDynamicFieldLabels(allLabels);
-      } else if (Object.keys(newLabels).length > 0) {
-        setDynamicFieldLabels(prev => ({ ...prev, ...newLabels }));
-      }
+      // Merge: server allExtra as base, then local extraFields, then new chatbot fields on top
+      // Local state always wins over server state (nothing is saved until user clicks Save)
+      setExtraFields(prev => ({ ...(allExtra || {}), ...prev, ...newFields }));
+      setDynamicFieldLabels(prev => ({ ...(allLabels || {}), ...prev, ...newLabels }));
 
       const reply = d?.reply || d?.details?.reply;
       if (reply) setChatMessages(prev => [...prev, { role: 'model', text: reply }]);
@@ -431,7 +462,14 @@ export default function ProfileEdit({ user, onUpdate }) {
     } finally { setChatLoading(false); }
   }, [chatInput, chatMessages, formData, discoveredFields]);
 
-  const handleChange = (e) => { const { name, value, type, checked } = e.target; setFormData(p => ({ ...p, [name]: type === 'checkbox' ? checked : value })); setError(''); };
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handler = (e) => { if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
+
+  const handleChange = (e) => { const { name, value, type, checked } = e.target; setFormData(p => ({ ...p, [name]: type === 'checkbox' ? checked : value })); setHasUnsavedChanges(true); setError(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true); setError(''); setSuccess(''); setVectorStatus('');
@@ -440,7 +478,9 @@ export default function ProfileEdit({ user, onUpdate }) {
         ...formData, skills: toArr(formData.skills), tools: toArr(formData.tools), languages: toArr(formData.languages),
         coreDomains: toArr(formData.coreDomains), interests: toArr(formData.interests),
         experience_years: parseInt(formData.experience_years, 10) || parseInt(formData.totalYearsExperience, 10) || 0,
-        extraFields, dynamicFieldLabels,
+        extraFields: { ...extraFields, ...chatbotAnswers },
+        dynamicFieldLabels: { ...dynamicFieldLabels, ...chatbotLabels },
+        chatbotFieldKeys: Object.keys(chatbotAnswers),
       });
       setHasUnsavedChanges(false); setSuccess('Profile saved.'); setVectorStatus('indexing');
       setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500);
@@ -508,7 +548,7 @@ export default function ProfileEdit({ user, onUpdate }) {
           ) : (
             <>
               {/* Show connected identity */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#0a6' + '0d', border: '1px solid #0a644', borderRadius: P.borderRadius.md }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#00aa660d', border: '1px solid #0a644', borderRadius: P.borderRadius.md }}>
                 <LinkedInIcon />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: P.typography.fontSize.sm, color: txt, fontWeight: 500 }}>{authedName || 'LinkedIn Account'}</div>
@@ -533,19 +573,18 @@ export default function ProfileEdit({ user, onUpdate }) {
                 </>
               ) : (
                 <>
-                  {/* First time — need to enter URL once, then it locks */}
                   <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>
-                    Enter your LinkedIn profile URL to link it to your account. This will be locked after your first scrape.
+                    Your LinkedIn profile URL is locked to your authenticated account.
                   </p>
                   <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    <input type="url" placeholder="https://www.linkedin.com/in/your-username" value={linkedinUrlInput} onChange={(e) => setLinkedinUrlInput(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 220 }} />
+                    <div style={{ ...inputStyle, flex: 1, minWidth: 220, background: bg2, color: txt2, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      {linkedinUrlInput || `https://www.linkedin.com/in/${(authedName || '').toLowerCase().replace(/\s+/g, '')}`}
+                    </div>
                     <Button type="button" onClick={handleScrape} disabled={isScraping || scrapeCooldown > 0 || !linkedinUrlInput.trim()} variant="primary" size="sm">
-                      {isScraping ? 'Scraping...' : !linkedinUrlInput.trim() ? 'Enter URL first' : 'Link & Scrape'}
+                      {isScraping ? 'Scraping...' : 'Scrape & Auto-fill'}
                     </Button>
                   </div>
-                  <p style={{ fontSize: 10, color: txt2, marginTop: '0.5rem', fontStyle: 'italic' }}>
-                    After scraping, this URL will be permanently linked to your account. To change it, disconnect and re-authenticate.
-                  </p>
                 </>
               )}
               {postsScraped > 0 && <p style={{ fontSize: 11, color: txt2, marginTop: '0.75rem' }}>{postsScraped} posts deeply analyzed.</p>}
@@ -572,6 +611,13 @@ export default function ProfileEdit({ user, onUpdate }) {
           <Field text="LinkedIn URL"><input name="linkedinUrl" value={formData.linkedinUrl} onChange={handleChange} style={inputStyle} placeholder="https://linkedin.com/in/..." /></Field>
           <div style={{ marginTop: '1rem', padding: '1rem', border: `1px solid ${bdr2}`, borderRadius: P.borderRadius.md }}>
             <p style={{ ...labelStyle, marginBottom: '0.8rem' }}>Resume (PDF / DOCX)</p>
+            {user.resume && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem', padding: '0.5rem 0.75rem', background: bg2, borderRadius: P.borderRadius.md, border: `1px solid ${bdr2}` }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={gold} strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span style={{ fontSize: P.typography.fontSize.sm, color: txt, flex: 1 }}>{resume ? resume.name : user.resume.replace(/^[a-f0-9]{24}_/, '')}</span>
+                <span style={{ fontSize: 10, color: '#0a6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Uploaded</span>
+              </div>
+            )}
             <input type="file" accept=".pdf,.docx,.doc" onChange={handleResumeChange} style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.8rem', display: 'block' }} />
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <Button type="button" onClick={handleResumeUpload} disabled={uploadingResume || !resume} variant="primary" size="sm">{uploadingResume ? 'Uploading...' : 'Upload'}</Button>
@@ -611,40 +657,74 @@ export default function ProfileEdit({ user, onUpdate }) {
         </div>
       )}
 
-      {/* Dynamic Fields - with animated entry */}
-      {extraFieldEntries.length > 0 && (
-        <div style={{ marginBottom: '1.5rem', border: `1px solid ${gold}33`, borderRadius: P.borderRadius.lg, overflow: 'hidden', background: bg0 }}>
-          <div style={{ width: '100%', padding: '0.95rem 1.25rem', background: `${gold}0a`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: gold, fontFamily: mono, fontSize: P.typography.fontSize.xs, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              Discovered & Collected Insights
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: `1px solid ${gold}66`, background: `${gold}18` }}>{extraFieldEntries.length} fields</span>
-            </span>
-            {!showChatbot && (
-              <button type="button" onClick={() => setShowChatbot(true)} style={{
-                background: `${gold}18`, border: `1px solid ${gold}44`, borderRadius: P.borderRadius.full,
-                color: gold, fontFamily: mono, fontSize: P.typography.fontSize.xs, padding: '0.4rem 0.9rem',
-                cursor: 'pointer', letterSpacing: '0.06em',
-              }}>+ Add More</button>
-            )}
-          </div>
-          <div style={{ padding: '1.25rem' }}>
-            <div style={grid(2)}>
-              {extraFieldEntries.map(([key, value]) => {
-                const fl = dynamicFieldLabels[key] || key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
-                return (
-                  <DynamicFieldCard
-                    key={key}
-                    label={fl}
-                    value={value}
-                    isNew={newFieldKeys.has(key)}
-                    onChange={(e) => setExtraFields(prev => ({ ...prev, [key]: e.target.value }))}
-                  />
-                );
-              })}
+      {/* Discovered from LinkedIn (scrape insights - not chatbot) */}
+      {(() => {
+        const chatKeys = new Set(Object.keys(chatbotAnswers));
+        const scrapeEntries = extraFieldEntries.filter(([k]) => !chatKeys.has(k));
+        return scrapeEntries.length > 0 && (
+          <div style={{ marginBottom: '1.5rem', border: `1px solid ${bdr}`, borderRadius: P.borderRadius.lg, overflow: 'hidden', background: bg0 }}>
+            <div style={{ width: '100%', padding: '0.95rem 1.25rem', background: bg2, color: txt, fontFamily: mono, fontSize: P.typography.fontSize.xs, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                Discovered from LinkedIn
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: `1px solid ${bdr2}`, color: txt2 }}>{scrapeEntries.length} insights</span>
+              </span>
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              <div style={grid(2)}>
+                {scrapeEntries.map(([key, value]) => {
+                  const fl = dynamicFieldLabels[key] || key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+                  return (
+                    <DynamicFieldCard key={key} label={fl} value={value} isNew={newFieldKeys.has(key)}
+                      onChange={(e) => { setExtraFields(prev => ({ ...prev, [key]: e.target.value })); setHasUnsavedChanges(true); }} />
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {/* Additional Questions — Chatbot-collected founder profile fields */}
+      {(() => {
+        const chatEntries = Object.entries(chatbotAnswers).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
+        return (
+          <div style={{ marginBottom: '1.5rem', border: `1px solid ${gold}33`, borderRadius: P.borderRadius.lg, overflow: 'hidden', background: bg0 }}>
+            <div style={{ width: '100%', padding: '0.95rem 1.25rem', background: `${gold}0a`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: gold, fontFamily: mono, fontSize: P.typography.fontSize.xs, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                Founder Profile — Additional Questions
+                {chatEntries.length > 0 && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, border: `1px solid ${gold}66`, background: `${gold}18` }}>{chatEntries.length} answers</span>}
+              </span>
+              {!showChatbot && (
+                <button type="button" onClick={() => {
+                  if (!chatMessages.length) setChatMessages([{ role: 'model', text: "Hi! I'm your founder profiling assistant. Tell me about your startup ambitions and I'll build your co-founder matching profile." }]);
+                  setShowChatbot(true);
+                }} style={{
+                  background: `${gold}18`, border: `1px solid ${gold}44`, borderRadius: P.borderRadius.full,
+                  color: gold, fontFamily: mono, fontSize: P.typography.fontSize.xs, padding: '0.4rem 0.9rem',
+                  cursor: 'pointer', letterSpacing: '0.06em',
+                }}>{chatEntries.length > 0 ? '+ Continue Chat' : '+ Start Chat'}</button>
+              )}
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              {chatEntries.length > 0 ? (
+                <div style={grid(2)}>
+                  {chatEntries.map(([key, value]) => {
+                    const fl = chatbotLabels[key] || dynamicFieldLabels[key] || key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+                    return (
+                      <DynamicFieldCard key={key} label={fl} value={value} isNew={newFieldKeys.has(key)}
+                        onChange={(e) => { setChatbotAnswers(prev => ({ ...prev, [key]: e.target.value })); setExtraFields(prev => ({ ...prev, [key]: e.target.value })); setHasUnsavedChanges(true); }} />
+                    );
+                  })}
+                </div>
+              ) : (
+                <p style={{ fontSize: P.typography.fontSize.sm, color: txt2, textAlign: 'center', padding: '1rem 0', lineHeight: 1.6 }}>
+                  No answers collected yet. Open the Founder Chat to answer questions about your availability, equity preferences, leadership style, and more. Each answer creates a field here.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {hasUnsavedChanges && <div style={statusBanner(gold, `${gold}0d`, `1px solid ${gold}44`)}>You have unsaved changes. Click Save to persist your profile to the database and enable matching.</div>}
       <Button type="submit" disabled={loading} variant="primary" size="lg" fullWidth>{loading ? 'Saving...' : hasUnsavedChanges ? 'Save Profile (unsaved changes)' : 'Save Profile'}</Button>

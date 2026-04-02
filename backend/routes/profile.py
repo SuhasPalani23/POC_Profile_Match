@@ -95,7 +95,7 @@ PROFILE_ALLOWED_FIELDS = [
     "publications", "extraFields", "tools", "coreDomains", "interests",
     "industryInclination", "skillStrength", "careerGoals", "preferredRole",
     "preferredIndustry", "strengths", "weaknesses", "workStyle", "openToWork", "hobbies",
-    "extraFields", "dynamicFieldLabels",
+    "extraFields", "dynamicFieldLabels", "chatbotFieldKeys",
 ]
 
 PROFILE_RESET_DEFAULTS = {
@@ -203,17 +203,36 @@ def update_profile(current_user):
     from datetime import datetime
     update_fields['scrapedAt'] = datetime.utcnow()
 
+    # Also allow chatbotFieldKeys even if it's an empty list (it's metadata, not content)
+    if "chatbotFieldKeys" in data and isinstance(data["chatbotFieldKeys"], list):
+        update_fields["chatbotFieldKeys"] = data["chatbotFieldKeys"]
+
     if not update_fields:
         return validation_error("No valid fields to update")
+
+    print(f"[update_profile] Saving fields: {list(update_fields.keys())}")
+    if "chatbotFieldKeys" in update_fields:
+        print(f"[update_profile] chatbotFieldKeys: {update_fields['chatbotFieldKeys']}")
 
     success = User.update_profile(current_user["_id"], update_fields)
     if not success:
         return api_error("PROFILE_UPDATE_FAILED", "Failed to update profile", 500)
 
-    # Calculate Profile Completion Score
-    core_fields = ['firstName', 'lastName', 'headline', 'skills', 'about', 'currentPosition', 'currentCompany', 'email']
-    filled_count = sum(1 for field in core_fields if update_fields.get(field))
-    score = int((filled_count / len(core_fields)) * 100)
+    # Calculate Profile Completion Score — must match frontend formula
+    # Must-have (40%): firstName, lastName, headline, email, linkedinUrl
+    must_have = ['firstName', 'lastName', 'headline', 'email', 'linkedinUrl']
+    must_filled = sum(1 for f in must_have if update_fields.get(f) or current_user.get(f))
+    # Profile (30%): about, currentPosition, skills, tools, coreDomains, totalYearsExperience, workStyle
+    profile_fields = ['about', 'currentPosition', 'skills', 'tools', 'coreDomains', 'totalYearsExperience', 'workStyle']
+    profile_filled = sum(1 for f in profile_fields if update_fields.get(f) or current_user.get(f))
+    # Chatbot (30%): count of chatbotFieldKeys
+    chatbot_keys = update_fields.get('chatbotFieldKeys') or current_user.get('chatbotFieldKeys') or []
+    chatbot_count = len(chatbot_keys)
+
+    must_score = (must_filled / len(must_have)) * 40
+    profile_score = (profile_filled / len(profile_fields)) * 30
+    chatbot_score = min(chatbot_count, 5) / 5 * 30
+    score = min(100, round(must_score + profile_score + chatbot_score))
     User.update_profile(current_user["_id"], {"profileCompletionScore": score})
 
     updated_user = User.find_by_id(current_user["_id"])
@@ -1478,7 +1497,10 @@ def founder_chat(current_user):
         merged_extra = existing_extra
         merged_labels = existing_labels
 
-    print(f"[founder_chat] extractedFields={new_fields}  allExtraFields keys={list(merged_extra.keys())}")
+    print(f"[founder_chat] OpenAI raw result keys: {list(result.keys())}")
+    print(f"[founder_chat] extractedFields={new_fields}")
+    print(f"[founder_chat] fieldLabels={new_labels}")
+    print(f"[founder_chat] allExtraFields keys={list(merged_extra.keys())}")
 
     return api_success({
         "reply": result.get("message", ""),

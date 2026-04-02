@@ -166,6 +166,47 @@ def get_current_user(current_user):
     return api_success({"user": current_user}, message="Current user fetched")
 
 
+@auth_bp.route('/delete-account', methods=['DELETE'])
+@token_required
+def delete_account(current_user):
+    """Delete user account — removes from MongoDB, Pinecone, and GridFS."""
+    from db import get_collection
+    from bson.objectid import ObjectId
+
+    user_id = current_user["_id"]
+
+    # Remove from Pinecone
+    vs = get_vector_service()
+    if vs:
+        try:
+            vs.remove_user(user_id)
+            print(f"[Auth] Removed user {user_id} from Pinecone")
+        except Exception as e:
+            print(f"[Auth] Warning: Failed to remove from Pinecone: {e}")
+
+    # Remove resume from GridFS if exists
+    if current_user.get("resume_file_id"):
+        try:
+            import gridfs
+            from pymongo import MongoClient
+            client = MongoClient(Config.MONGODB_URI)
+            fs = gridfs.GridFS(client[Config.DB_NAME])
+            fs.delete(ObjectId(current_user["resume_file_id"]))
+        except Exception as e:
+            print(f"[Auth] Warning: Failed to delete resume from GridFS: {e}")
+
+    # Remove from MongoDB
+    get_collection("users").delete_one({"_id": ObjectId(user_id)})
+
+    # Clean up collaborations
+    get_collection("collaborations").delete_many({
+        "$or": [{"candidate_id": user_id}, {"founder_id": user_id}]
+    })
+
+    print(f"[Auth] Account deleted: {user_id} ({current_user.get('email', '')})")
+    return api_success({"deleted": True}, message="Account deleted successfully")
+
+
 # ------------------------------------------------------------------
 # LinkedIn OAuth 2.0
 # ------------------------------------------------------------------
