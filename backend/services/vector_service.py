@@ -74,9 +74,12 @@ class VectorService:
             
         if user.get("bio"):
             parts.append(f"Bio: {user['bio']}")
-            
+
         if user.get("about"):
             parts.append(f"About: {user['about']}")
+
+        if user.get("aboutMe"):
+            parts.append(f"About Me: {user['aboutMe']}")
 
         skills = user.get("skills", [])
         if skills:

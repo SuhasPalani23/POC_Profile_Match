@@ -81,6 +81,17 @@ export const profileAPI = {
   getATSScore: (projectId) => api.get(`/profile/ats-score/${projectId}`),
   getSkillsSuggestions: (data) => api.post("/profile/skills-suggestions", data),
   founderChat: (data) => api.post("/profile/founder-chat", data),
+  rewriteText: (data) => api.post("/profile/rewrite-text", data),
+  textToSpeech: (text, voice = "alloy") =>
+    api.post("/profile/text-to-speech", { text, voice }, { responseType: "blob" }),
+  speechToText: (audioBlob) => {
+    const fd = new FormData();
+    fd.append("audio", audioBlob, "recording.webm");
+    const token = localStorage.getItem("token");
+    return axios.post(`${API_BASE_URL}/profile/speech-to-text`, fd, {
+      headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` },
+    });
+  },
 };
 
 export const linkedinAuthAPI = {
