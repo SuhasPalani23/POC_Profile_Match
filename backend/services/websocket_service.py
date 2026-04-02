@@ -8,12 +8,18 @@ socketio = SocketIO(cors_allowed_origins="*")
 def token_required_ws(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = kwargs.get('token')
+        # Socket.IO passes event data as first positional arg
+        data = args[0] if args else kwargs
+        if isinstance(data, dict):
+            token = data.get('token')
+        else:
+            token = kwargs.get('token')
         if not token:
+            print(f"[WS] Auth failed: no token in {type(data)}")
             return {'error': 'Authentication required'}, 401
         try:
-            data = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
-            kwargs['user_id'] = data['user_id']
+            decoded = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
+            kwargs['user_id'] = decoded['user_id']
             return f(*args, **kwargs)
         except jwt.ExpiredSignatureError:
             return {'error': 'Token expired'}, 401
@@ -29,7 +35,7 @@ class WebSocketService:
     def init_app(app):
         socketio.init_app(app,
                          cors_allowed_origins="*",
-                         async_mode='threading',
+                         async_mode='eventlet',
                          logger=True,
                          engineio_logger=True)
         WebSocketService._register_handlers()
@@ -63,6 +69,7 @@ class WebSocketService:
             project_id = data.get('project_id')
             if project_id:
                 join_room(f'project_{project_id}')
+                print(f"[WS] User {user_id} joined project room project_{project_id}")
                 emit('joined_project', {'project_id': project_id, 'message': 'Joined project room'})
         
         @socketio.on('leave_project')

@@ -11,7 +11,7 @@ class ATSService:
         self.llama_service = LlamaService()
 
     # ------------------------------------------------------------------
-    # File parsing (still deterministic — that's fine)
+    # File parsing
     # ------------------------------------------------------------------
 
     def parse_resume_pdf(self, file_path: str) -> str:
@@ -35,7 +35,6 @@ class ATSService:
             return ""
 
     def parse_resume(self, file_path: str) -> str:
-        """Dispatch to the right parser based on file extension."""
         if not file_path:
             return ""
         if file_path.lower().endswith(".pdf"):
@@ -44,7 +43,6 @@ class ATSService:
             return self.parse_resume_docx(file_path)
         return ""
 
-    # Lightweight regex for contact info — no need to burn LLM tokens on this
     def extract_email(self, text: str) -> Optional[str]:
         matches = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
         return matches[0] if matches else None
@@ -54,14 +52,157 @@ class ATSService:
         return matches[0] if matches else None
 
     # ------------------------------------------------------------------
+    # Build comprehensive candidate text from ALL profile fields
+    # ------------------------------------------------------------------
+
+    def build_candidate_text(self, user: Dict) -> str:
+        """Build a rich text representation of a candidate using ALL available data."""
+        parts = []
+
+        # Core identity
+        if user.get("name"):
+            parts.append(f"Name: {user['name']}")
+        if user.get("professional_title") or user.get("headline"):
+            parts.append(f"Title: {user.get('professional_title') or user.get('headline')}")
+        if user.get("currentPosition"):
+            parts.append(f"Current Role: {user['currentPosition']} at {user.get('currentCompany', '')}")
+        if user.get("experience_years") or user.get("totalYearsExperience"):
+            parts.append(f"Experience: {user.get('experience_years') or user.get('totalYearsExperience')} years")
+        if user.get("location"):
+            parts.append(f"Location: {user['location']}")
+
+        # Bio / About
+        if user.get("about") or user.get("bio"):
+            parts.append(f"About: {(user.get('about') or user.get('bio', ''))[:800]}")
+
+        # Skills & Tools
+        skills = user.get("skills", [])
+        if skills:
+            parts.append(f"Skills: {', '.join(skills[:30])}")
+        tools = user.get("tools", [])
+        if tools:
+            parts.append(f"Tools & Technologies: {', '.join(tools[:20])}")
+
+        # Domains & Interests
+        domains = user.get("coreDomains", [])
+        if domains:
+            parts.append(f"Core Domains: {', '.join(domains[:8])}")
+        interests = user.get("interests", [])
+        if interests:
+            parts.append(f"Interests: {', '.join(interests[:8])}")
+
+        # Career
+        if user.get("careerGoals"):
+            parts.append(f"Career Goals: {user['careerGoals']}")
+        if user.get("preferredRole"):
+            parts.append(f"Preferred Role: {user['preferredRole']}")
+        if user.get("preferredIndustry") or user.get("industryInclination"):
+            parts.append(f"Industry Preference: {user.get('preferredIndustry') or user.get('industryInclination')}")
+        if user.get("skillStrength"):
+            parts.append(f"Skill Level: {user['skillStrength']}")
+        if user.get("workStyle"):
+            parts.append(f"Work Style: {user['workStyle']}")
+        if user.get("strengths"):
+            parts.append(f"Strengths: {user['strengths']}")
+
+        # Education
+        education = user.get("education", [])
+        if education:
+            edu_parts = []
+            for e in education[:3]:
+                if isinstance(e, dict):
+                    edu_parts.append(f"{e.get('degree', '')} - {e.get('school', '')} ({e.get('duration', '')})")
+                elif isinstance(e, str):
+                    edu_parts.append(e)
+            if edu_parts:
+                parts.append(f"Education: {'; '.join(edu_parts)}")
+
+        # Certifications
+        certs = user.get("certifications", [])
+        if certs:
+            cert_names = []
+            for c in certs[:5]:
+                if isinstance(c, dict):
+                    cert_names.append(f"{c.get('name', '')} ({c.get('issuer', '')})")
+                elif isinstance(c, str):
+                    cert_names.append(c)
+            if cert_names:
+                parts.append(f"Certifications: {'; '.join(cert_names)}")
+
+        # Experience history
+        experience = user.get("experience", [])
+        if experience:
+            exp_parts = []
+            for exp in experience[:5]:
+                if isinstance(exp, dict):
+                    title = exp.get("title", "")
+                    company = exp.get("company", "")
+                    duration = exp.get("duration", "")
+                    desc = exp.get("description", "")[:200]
+                    exp_parts.append(f"{title} at {company} ({duration}){': ' + desc if desc else ''}")
+            if exp_parts:
+                parts.append(f"Work History:\n" + "\n".join(f"  - {e}" for e in exp_parts))
+
+        # Founder profile (chatbot collected data)
+        extra = user.get("extraFields", {})
+        if extra:
+            founder_parts = []
+            founder_fields = {
+                "hours_per_week": "Weekly Commitment",
+                "equity_preference": "Equity/Comp Preference",
+                "compensation_preference": "Compensation Preference",
+                "risk_tolerance": "Risk Tolerance",
+                "previous_startup_experience": "Startup Experience",
+                "leadership_style": "Leadership Style",
+                "technical_or_business_orientation": "Technical/Business Focus",
+                "stage_preference": "Preferred Startup Stage",
+                "unique_value": "Unique Value",
+                "co_founder_expectations": "Co-Founder Expectations",
+                "co_founder_qualities": "Co-Founder Qualities",
+                "looking_for_cofounder": "Looking For in Co-Founder",
+                "geographic_preferences": "Location Preference",
+                "industry_preferences": "Industry Focus",
+                "financial_runway": "Financial Runway",
+                "domain_expertise": "Domain Expertise",
+                "urgency_to_start": "Timeline",
+                "decision_making_style": "Decision Style",
+                "conflict_resolution_approach": "Conflict Resolution",
+                "network_strength": "Network Strength",
+            }
+            for key, label in founder_fields.items():
+                val = extra.get(key, "")
+                if val and val not in [[], {}, ""]:
+                    display = ", ".join(val) if isinstance(val, list) else str(val)
+                    founder_parts.append(f"{label}: {display}")
+
+            # Also include scrape-discovered insights
+            insight_fields = {
+                "achievementSignals": "Achievements",
+                "communityInvolvement": "Community",
+                "projectsMentioned": "Projects",
+                "thoughtLeadershipTopics": "Thought Leadership",
+                "industryFocus": "Industry Focus Areas",
+            }
+            for key, label in insight_fields.items():
+                val = extra.get(key, "")
+                if val and val not in [[], {}, ""]:
+                    display = ", ".join(val) if isinstance(val, list) else str(val)
+                    founder_parts.append(f"{label}: {display}")
+
+            if founder_parts:
+                parts.append(f"Founder Profile:\n" + "\n".join(f"  - {p}" for p in founder_parts))
+
+        # Resume text
+        if user.get("resume_text"):
+            parts.append(f"Resume:\n{user['resume_text'][:3000]}")
+
+        return "\n".join(filter(None, parts))
+
+    # ------------------------------------------------------------------
     # LLM: analyze resume text
     # ------------------------------------------------------------------
 
     def analyze_resume_with_ai(self, resume_text: str) -> Dict:
-        """
-        Full LLM analysis of a resume.
-        Returns structured JSON with skills, experience, achievements, etc.
-        """
         prompt = f"""
 You are an expert technical recruiter and career advisor.
 
@@ -95,36 +236,38 @@ Respond ONLY with valid JSON — no markdown fences:
             return {}
 
     # ------------------------------------------------------------------
-    # LLM: ATS compatibility score
+    # LLM: ATS compatibility score (considers ALL profile data)
     # ------------------------------------------------------------------
 
     def calculate_ats_score(self, candidate_text: str, job_description: str) -> Dict:
         """
-        Ask Llama to reason about fit between a candidate profile/resume and a
-        job description. Returns a rich scoring object.
-
-        Why LLM instead of cosine similarity:
-        - Cosine similarity measures surface word overlap, not semantic fit.
-        - An LLM understands that "NumPy/Pandas data wrangling" is highly relevant
-          to "data pipeline engineering", even if those exact words don't appear.
-        - It can weight mandatory vs. nice-to-have skills, catch red flags, and
-          give actionable reasoning — NLP can't do any of that.
+        Comprehensive ATS scoring using the FULL candidate profile
+        (skills, experience, resume, founder profile, chatbot answers, etc.)
+        against a project description.
         """
         prompt = f"""
-You are a senior technical recruiter evaluating a candidate for a startup project.
+You are a senior startup advisor evaluating a candidate for a co-founder matching platform.
 
---- Candidate Profile / Resume ---
-{candidate_text[:4000]}
+--- FULL CANDIDATE PROFILE ---
+{candidate_text[:6000]}
 
---- Job / Project Description ---
+--- PROJECT / JOB DESCRIPTION ---
 {job_description[:3000]}
 
-Evaluate the candidate's fit comprehensively. Consider:
-1. Technical skill overlap (including inferred/implied skills)
-2. Experience level appropriateness
-3. Domain knowledge alignment
-4. Soft skills and leadership signals
-5. Gaps or concerns
+Evaluate this candidate COMPREHENSIVELY considering:
+1. Technical skill match — do their skills align with the project needs?
+2. Experience & seniority — is their experience level appropriate?
+3. Domain & industry alignment — do they have relevant domain knowledge?
+4. Founder mindset — hours commitment, risk tolerance, financial runway, urgency
+5. Team fit — leadership style, work style, collaboration approach
+6. Co-founder compatibility — what they bring vs what's needed
+7. Certifications & education relevance
+8. Achievement signals & execution capability
+9. Geographic & stage preferences alignment
+
+Be thorough and consider both explicit and inferred/implied qualifications.
+A candidate who has completed their founder profile (hours, equity, risk tolerance, etc.)
+should get credit for that — it shows commitment and self-awareness.
 
 Respond ONLY with valid JSON — no markdown fences:
 {{
@@ -132,13 +275,22 @@ Respond ONLY with valid JSON — no markdown fences:
     "technical_fit": <integer 0-100>,
     "experience_fit": <integer 0-100>,
     "domain_fit": <integer 0-100>,
+    "founder_mindset_fit": <integer 0-100>,
+    "team_compatibility_fit": <integer 0-100>,
     "matched_skills": ["skill1", ...],
     "missing_skills": ["skill1", ...],
-    "inferred_skills": ["skill that was implied but not stated", ...],
-    "strengths": ["strength1", ...],
-    "gaps": ["gap1", ...],
-    "overall_reasoning": "2-3 sentence explanation of the score"
+    "inferred_skills": ["skill implied but not stated", ...],
+    "strengths": ["specific strength relevant to this project", ...],
+    "gaps": ["specific gap or concern", ...],
+    "founder_highlights": ["relevant founder trait for this project", ...],
+    "overall_reasoning": "3-4 sentence explanation covering technical fit AND founder fit"
 }}
+
+Score guidance:
+- 85-100: Exceptional match — strong skills + strong founder profile + domain alignment
+- 70-84: Good match — solid skills, some founder traits align well
+- 55-69: Moderate match — partial skill overlap or missing founder profile data
+- Below 55: Weak match — significant gaps in skills or founder fit
 """
         try:
             result = self.llama_service.generate_json(prompt)
@@ -147,11 +299,14 @@ Respond ONLY with valid JSON — no markdown fences:
                 "technical_fit": 0,
                 "experience_fit": 0,
                 "domain_fit": 0,
+                "founder_mindset_fit": 0,
+                "team_compatibility_fit": 0,
                 "matched_skills": [],
                 "missing_skills": [],
                 "inferred_skills": [],
                 "strengths": [],
                 "gaps": [],
+                "founder_highlights": [],
                 "overall_reasoning": "Unable to score at this time.",
             }
         except Exception as e:
@@ -165,22 +320,23 @@ Respond ONLY with valid JSON — no markdown fences:
     def generate_profile_optimization_tips(
         self, candidate_text: str, job_description: str
     ) -> List[str]:
-        """
-        Use Llama to generate actionable, specific tips for improving the
-        candidate's profile/resume for a given role.
-        """
         prompt = f"""
-You are an expert ATS optimization coach and career advisor.
+You are an expert startup co-founder matching advisor.
 
-Candidate Profile / Resume:
-{candidate_text[:3000]}
+Candidate Full Profile:
+{candidate_text[:4000]}
 
-Target Job / Project Description:
+Target Project Description:
 {job_description[:2000]}
 
-Generate 6-8 highly specific, actionable tips to improve this candidate's ATS score
-and overall fit for the role. Be concrete — name specific skills, certifications,
-keywords, and phrasing improvements.
+Generate 6-8 highly specific, actionable tips to improve this candidate's match score
+for this project. Consider:
+- Technical skills they should highlight or acquire
+- Founder profile improvements (if missing: hours commitment, equity stance, risk tolerance)
+- Domain expertise they should emphasize
+- Certifications or education that would strengthen their case
+- How to better present their experience for this specific project
+- Co-founder traits to develop or showcase
 
 Respond ONLY with valid JSON — no markdown fences:
 {{
@@ -199,14 +355,10 @@ Respond ONLY with valid JSON — no markdown fences:
             return []
 
     # ------------------------------------------------------------------
-    # LLM: skill extraction (for quick skill tagging without full analysis)
+    # LLM: skill extraction
     # ------------------------------------------------------------------
 
     def extract_skills_with_ai(self, text: str) -> List[str]:
-        """
-        Extract skills from any text (bio, resume snippet, project description)
-        using the LLM so we catch implied and abbreviated skills too.
-        """
         prompt = f"""
 Extract ALL technical and professional skills mentioned or implied in the following text.
 Include: programming languages, frameworks, tools, methodologies, platforms, soft skills
@@ -236,13 +388,6 @@ Respond ONLY with valid JSON — no markdown fences:
     def comprehensive_profile_analysis(
         self, user_data: Dict, resume_path: Optional[str] = None
     ) -> Dict:
-        """
-        Full analysis pipeline:
-        1. Parse resume file → raw text
-        2. Llama extracts structured info
-        3. Merge with existing profile skills
-        4. Return everything to the caller (route saves what it needs)
-        """
         analysis = {
             "basic_info": {
                 "name": user_data.get("name", ""),
@@ -250,6 +395,9 @@ Respond ONLY with valid JSON — no markdown fences:
                 "bio": user_data.get("bio", ""),
                 "skills": user_data.get("skills", []),
                 "experience_years": user_data.get("experience_years", 0),
+                "headline": user_data.get("headline", ""),
+                "coreDomains": user_data.get("coreDomains", []),
+                "tools": user_data.get("tools", []),
             },
             "resume_text": "",
             "resume_analysis": {},
@@ -267,14 +415,12 @@ Respond ONLY with valid JSON — no markdown fences:
 
         analysis["resume_text"] = resume_text
 
-        # Contact extraction (cheap regex)
         analysis["resume_analysis"] = {
             "text_preview": resume_text[:500] + "..." if len(resume_text) > 500 else resume_text,
             "email": self.extract_email(resume_text),
             "phone": self.extract_phone(resume_text),
         }
 
-        # Full LLM analysis
         ai_insights = self.analyze_resume_with_ai(resume_text)
         analysis["ai_insights"] = ai_insights
 
@@ -283,10 +429,10 @@ Respond ONLY with valid JSON — no markdown fences:
                 "experience_years", 0
             )
 
-            # Merge skills: existing profile + extracted from resume, deduped
             extracted_skills = ai_insights.get("skills", [])
             existing_skills = user_data.get("skills", [])
-            merged = list({s.strip() for s in existing_skills + extracted_skills if s.strip()})
+            tools = user_data.get("tools", [])
+            merged = list({s.strip() for s in existing_skills + extracted_skills + tools if s.strip()})
             analysis["merged_skills"] = merged
 
             analysis["recommendations"] = ai_insights.get("key_achievements", [])

@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, request
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -70,9 +73,15 @@ def create_app() -> Flask:
                 {"max_bytes": max_content, "received_bytes": request_max},
             )
 
+        # Skip rate limiting for CORS preflight requests
+        if request.method == "OPTIONS":
+            return
+
         path = request.path or ""
         ip = _client_ip()
-        if path.startswith("/api/auth/"):
+        # LinkedIn status/disconnect/callback are not login attempts — use general limit
+        is_linkedin_util = path.startswith("/api/auth/linkedin/")
+        if path.startswith("/api/auth/") and not is_linkedin_util:
             allowed = rate_limiter.is_allowed(
                 key=f"auth:{ip}",
                 max_requests=Config.RATE_LIMIT_AUTH_MAX_REQUESTS,
