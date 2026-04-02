@@ -1726,19 +1726,7 @@ def calculate_ats_score(current_user, project_id):
     if not project:
         return api_error("PROJECT_NOT_FOUND", "Project not found", 404)
 
-    user_text_parts = [
-        f"Name: {current_user.get('name', '')}",
-        f"Title: {current_user.get('professional_title', '')}",
-        f"Bio: {current_user.get('bio', '')}",
-        f"Skills: {', '.join(current_user.get('skills', []))}",
-        f"Experience: {current_user.get('experience_years', 0)} years",
-        f"Location: {current_user.get('location', '')}",
-    ]
-
-    if current_user.get("resume_text"):
-        user_text_parts.append(f"Resume:\n{current_user['resume_text'][:3000]}")
-
-    candidate_text = "\n".join(filter(None, user_text_parts))
+    candidate_text = ats_service.build_candidate_text(current_user)
 
     score_data = ats_service.calculate_ats_score(candidate_text, project["description"])
     tips = ats_service.generate_profile_optimization_tips(candidate_text, project["description"])

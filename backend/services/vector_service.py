@@ -138,7 +138,15 @@ class VectorService:
                 if part not in [None, ""] and str(part).strip()
             ) or user.get("location", "")
         )
-        return {
+        # Flatten extraFields into readable strings for metadata
+        extra = user.get("extraFields", {})
+        extra_flat = {}
+        if extra and isinstance(extra, dict):
+            for k, v in extra.items():
+                if v and v not in [[], {}, ""]:
+                    extra_flat[k] = ", ".join(v) if isinstance(v, list) else str(v)[:200]
+
+        metadata = {
             "name": self._stringify_metadata_value(user.get("name", "")),
             "email": self._stringify_metadata_value(user.get("email", "")),
             "professional_title": self._stringify_metadata_value(user.get("professional_title", "")),
@@ -146,7 +154,22 @@ class VectorService:
             "experience_years": int(user.get("experience_years", 0) or 0),
             "location": location_value,
             "has_resume": bool(user.get("resume")),
+            "core_domains": self._stringify_metadata_value(user.get("coreDomains", [])),
+            "interests": self._stringify_metadata_value(user.get("interests", [])),
+            "work_style": self._stringify_metadata_value(user.get("workStyle", "")),
+            "career_goals": self._stringify_metadata_value(user.get("careerGoals", ""))[:200],
+            "strengths": self._stringify_metadata_value(user.get("strengths", ""))[:200],
+            "linkedin_url": self._stringify_metadata_value(user.get("linkedinUrl", "")),
+            "open_to_work": bool(user.get("openToWork")),
+            "headline": self._stringify_metadata_value(user.get("headline", ""))[:200],
         }
+
+        # Add extraFields (chatbot answers + scrape insights) as metadata
+        # Pinecone metadata limit is 40KB — keep it reasonable
+        for k, v in list(extra_flat.items())[:20]:
+            metadata[f"extra_{k}"] = v
+
+        return metadata
 
     def _embed(self, text: str) -> List[float]:
         response = self.openai_client.embeddings.create(

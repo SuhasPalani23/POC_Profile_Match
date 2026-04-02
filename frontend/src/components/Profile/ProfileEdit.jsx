@@ -194,7 +194,7 @@ function CompletionRing({ score }) {
 function DynamicFieldCard({ label: fieldLabel, value, onChange, isNew }) {
   const displayValue = Array.isArray(value) ? value.join(', ') : String(value || '');
   const isLong = displayValue.length > 50 || displayValue.includes(',');
-  const filledStyle = { ...inputStyle, color: displayValue ? txt : txt2 };
+  const filledStyle = { ...inputStyle, fontSize: '0.92rem', color: displayValue ? txt : txt2 };
   return (
     <div style={{ animation: isNew ? 'fieldPop 0.5s ease-out' : 'none', marginBottom: '0.25rem' }}>
       <Field text={fieldLabel}>

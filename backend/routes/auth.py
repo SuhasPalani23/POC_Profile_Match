@@ -81,6 +81,20 @@ def _vectorize_new_user(user: dict):
         print(f"[Auth] Warning: Failed to vectorize new user {user['_id']}: {e}")
 
 
+def _vectorize_user_by_id(user_id: str):
+    """Re-index a user by ID (used after profile changes in auth routes)."""
+    service = get_vector_service()
+    if service is None:
+        return
+    try:
+        user = User.find_by_id(user_id)
+        if user:
+            service.upsert_user(user)
+            print(f"[Auth] Re-indexed user {user_id}")
+    except Exception as e:
+        print(f"[Auth] Warning: Failed to re-index user {user_id}: {e}")
+
+
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json(silent=True) or {}
@@ -338,6 +352,9 @@ def linkedin_callback():
 
     User.update_profile(user_id, update_data)
 
+    # Re-index in Pinecone so LinkedIn data is searchable
+    enqueue(_vectorize_user_by_id, user_id)
+
     # Build redirect with whatever we found
     updated_user = User.find_by_id(user_id)
     final_url = linkedin_vanity_url
@@ -387,4 +404,6 @@ def linkedin_disconnect(current_user):
             "linkedin_scraped": "",
         }}
     )
+    # Re-index to remove stale LinkedIn data from Pinecone
+    enqueue(_vectorize_user_by_id, current_user["_id"])
     return api_success({"linkedinAuthed": False}, message="LinkedIn disconnected — all LinkedIn data removed")
