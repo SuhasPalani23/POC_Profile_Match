@@ -37,6 +37,7 @@ const buildInitialForm = (u = {}) => {
     email: u.email || '', phone: u.phone || '', linkedinUrl: u.linkedinUrl || '', github: u.github || '', about: u.about || '', totalYearsExperience: u.totalYearsExperience || '',
     skills: Array.isArray(u.skills) ? u.skills.join(', ') : (u.skills || ''), tools: Array.isArray(u.tools) ? u.tools.join(', ') : (u.tools || ''), languages: Array.isArray(u.languages) ? u.languages.join(', ') : (u.languages || ''),
     coreDomains: Array.isArray(u.coreDomains) ? u.coreDomains.join(', ') : (u.coreDomains || ''), interests: Array.isArray(u.interests) ? u.interests.join(', ') : (u.interests || ''),
+    aboutMe: u.aboutMe || '',
     industryInclination: u.industryInclination || '', skillStrength: u.skillStrength || '', careerGoals: u.careerGoals || '', preferredRole: u.preferredRole || '', preferredIndustry: u.preferredIndustry || '', strengths: u.strengths || '', weaknesses: u.weaknesses || '', workStyle: u.workStyle || '', hobbies: u.hobbies || '', openToWork: Boolean(u.openToWork),
   };
 };
@@ -208,6 +209,141 @@ function DynamicFieldCard({ label: fieldLabel, value, onChange, isNew }) {
   );
 }
 
+
+/* ─── About Me with AI Enhancer + Voice ─── */
+function AboutMeEditor({ value, onChange, onVoiceResult }) {
+  const [rewriting, setRewriting] = useState(false);
+  const [activeStyle, setActiveStyle] = useState(null);
+  const [showStyles, setShowStyles] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [playingAudio, setPlayingAudio] = useState(false);
+
+  const Ic = ({ d, size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+  const styles = [
+    { key: 'professional', label: 'Professional', icon: <Ic d="M20 7h-9M14 17H5M17 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM3 7a2 2 0 1 0 4 0 2 2 0 0 0-4 0z" /> },
+    { key: 'shorten', label: 'Shorten', icon: <Ic d="M6 9l6 6 6-6" /> },
+    { key: 'elevator_pitch', label: 'Elevator Pitch', icon: <Ic d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /> },
+    { key: 'formal', label: 'Formal', icon: <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" /> },
+    { key: 'casual', label: 'Casual', icon: <Ic d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3" /> },
+    { key: 'lengthy', label: 'Expand', icon: <Ic d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /> },
+    { key: 'storytelling', label: 'Story', icon: <Ic d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v14H6.5A2.5 2.5 0 0 0 4 19.5z" /> },
+    { key: 'technical', label: 'Technical', icon: <Ic d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /> },
+  ];
+
+  const handleRewrite = async (style) => {
+    if (!value.trim()) return;
+    setRewriting(true); setActiveStyle(style);
+    try {
+      const res = await profileAPI.rewriteText({ text: value, style });
+      const rewritten = res.data?.rewritten || res.data?.details?.rewritten;
+      if (rewritten) onChange(rewritten);
+    } catch (e) {
+      console.error('Rewrite failed:', e);
+    } finally {
+      setRewriting(false); setActiveStyle(null);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+      mr.ondataavailable = (e) => chunks.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        try {
+          const res = await profileAPI.speechToText(blob);
+          const text = res.data?.text || res.data?.details?.text;
+          if (text) onVoiceResult(text);
+        } catch (e) { console.error('STT failed:', e); }
+      };
+      mr.start();
+      setMediaRecorder(mr); setRecording(true);
+    } catch (e) { console.error('Mic access denied:', e); }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) { mediaRecorder.stop(); setRecording(false); }
+  };
+
+  const handlePlayTTS = async () => {
+    if (!value.trim()) return;
+    setPlayingAudio(true);
+    try {
+      const res = await profileAPI.textToSpeech(value, 'nova');
+      const blob = new Blob([res.data], { type: 'audio/mpeg' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => { setPlayingAudio(false); URL.revokeObjectURL(url); };
+      audio.play();
+    } catch (e) {
+      console.error('TTS failed:', e); setPlayingAudio(false);
+    }
+  };
+
+  const chipStyle = (active) => ({
+    padding: '4px 10px', borderRadius: 999, border: `1px solid ${active ? gold : bdr2}`,
+    background: active ? `${gold}18` : 'transparent', color: active ? gold : txt2,
+    fontSize: 11, fontFamily: mono, cursor: rewriting ? 'wait' : 'pointer',
+    letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4,
+    transition: 'all 0.2s', opacity: rewriting && !active ? 0.5 : 1,
+  });
+
+  return (
+    <div style={{ marginBottom: '1.15rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+        <label style={labelStyle}>About Me</label>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {/* Voice record button */}
+          <button type="button" onClick={recording ? stopRecording : startRecording}
+            style={{ ...chipStyle(recording), background: recording ? '#d86b6b22' : 'transparent', color: recording ? '#d86b6b' : txt2, border: `1px solid ${recording ? '#d86b6b' : bdr2}` }}
+            title={recording ? 'Stop recording' : 'Record voice'}>
+            {recording
+              ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg> Stop</>
+              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> Voice</>
+            }
+          </button>
+          {/* Play TTS button */}
+          {value.trim() && (
+            <button type="button" onClick={handlePlayTTS} disabled={playingAudio}
+              style={chipStyle(playingAudio)} title="Listen to your About Me">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              {playingAudio ? ' Playing...' : ' Listen'}
+            </button>
+          )}
+          {/* AI rewrite toggle */}
+          <button type="button" onClick={() => setShowStyles(p => !p)}
+            style={{ ...chipStyle(showStyles), background: showStyles ? `${gold}18` : 'transparent', color: showStyles ? gold : txt2 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> AI Rewrite
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Tell us about yourself in your own words. What drives you? What makes you unique? (You can also use the Voice button to speak instead of typing)"
+        style={{ ...inputStyle, minHeight: 100, resize: 'vertical', fontSize: '0.92rem', lineHeight: 1.7 }}
+      />
+      {/* AI rewrite style chips */}
+      {showStyles && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, animation: 'fieldPop 0.2s ease-out' }}>
+          {styles.map(s => (
+            <button key={s.key} type="button" onClick={() => handleRewrite(s.key)}
+              disabled={rewriting || !value.trim()}
+              style={chipStyle(activeStyle === s.key)}>
+              {activeStyle === s.key ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : s.icon} {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {rewriting && <p style={{ fontSize: 11, color: gold, marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Rewriting as {activeStyle?.replace('_', ' ')}...</p>}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
 
 export default function ProfileEdit({ user, onUpdate }) {
   const initialForm = useMemo(() => buildInitialForm(user), [user]);
@@ -607,6 +743,11 @@ export default function ProfileEdit({ user, onUpdate }) {
             <Field text="Last Name"><input name="lastName" value={formData.lastName} onChange={handleChange} style={inputStyle} placeholder="Doe" /></Field>
           </div>
           <Field text="Professional Headline"><input name="headline" value={formData.headline} onChange={handleChange} style={inputStyle} placeholder="Senior ML Engineer" /></Field>
+          <AboutMeEditor
+            value={formData.aboutMe}
+            onChange={(val) => { setFormData(p => ({ ...p, aboutMe: val })); setHasUnsavedChanges(true); }}
+            onVoiceResult={(text) => { setFormData(p => ({ ...p, aboutMe: p.aboutMe ? p.aboutMe + ' ' + text : text })); setHasUnsavedChanges(true); }}
+          />
           <Field text="Email"><input name="email" value={formData.email} onChange={handleChange} style={inputStyle} type="email" placeholder="you@example.com" /></Field>
           <Field text="LinkedIn URL"><input name="linkedinUrl" value={formData.linkedinUrl} onChange={handleChange} style={inputStyle} placeholder="https://linkedin.com/in/..." /></Field>
           <div style={{ marginTop: '1rem', padding: '1rem', border: `1px solid ${bdr2}`, borderRadius: P.borderRadius.md }}>

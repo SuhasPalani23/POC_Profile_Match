@@ -95,7 +95,7 @@ PROFILE_ALLOWED_FIELDS = [
     "publications", "extraFields", "tools", "coreDomains", "interests",
     "industryInclination", "skillStrength", "careerGoals", "preferredRole",
     "preferredIndustry", "strengths", "weaknesses", "workStyle", "openToWork", "hobbies",
-    "extraFields", "dynamicFieldLabels", "chatbotFieldKeys",
+    "extraFields", "dynamicFieldLabels", "chatbotFieldKeys", "aboutMe",
 ]
 
 PROFILE_RESET_DEFAULTS = {
@@ -1511,6 +1511,127 @@ def founder_chat(current_user):
         "nextQuestion": result.get("nextQuestion", ""),
         "conversationComplete": result.get("conversationComplete", False),
     })
+
+
+# ------------------------------------------------------------------
+# POST /profile/rewrite-text  (AI text enhancer — like LinkedIn's AI rewrite)
+# ------------------------------------------------------------------
+
+@profile_bp.route("/rewrite-text", methods=["POST"])
+@token_required
+def rewrite_text(current_user):
+    """Rewrite user text in different styles: shorten, elevator pitch, formal, etc."""
+    data = request.json or {}
+    text = (data.get("text") or "").strip()
+    style = (data.get("style") or "professional").strip().lower()
+
+    if not text:
+        return api_error("BAD_REQUEST", "Text is required", 400)
+    if len(text) > 5000:
+        return api_error("BAD_REQUEST", "Text too long (max 5000 chars)", 400)
+
+    style_prompts = {
+        "professional": "Rewrite this as a polished, professional summary suitable for a co-founder matching platform. Keep the same meaning but make it sound confident and credible. 2-4 sentences.",
+        "shorten": "Condense this into 1-2 punchy sentences. Keep the most impactful points only. Be concise and direct.",
+        "elevator_pitch": "Turn this into a compelling 30-second elevator pitch. Start with a hook, highlight the unique value, end with a call to action. 3-4 sentences max.",
+        "formal": "Rewrite this in a formal, corporate tone suitable for investors or board members. Use precise language and quantifiable achievements where possible.",
+        "casual": "Rewrite this in a friendly, approachable tone as if talking to a potential co-founder over coffee. Keep it genuine and conversational.",
+        "lengthy": "Expand this into a detailed, comprehensive description. Add context, elaborate on key points, and paint a fuller picture. 5-8 sentences.",
+        "storytelling": "Rewrite this as a compelling narrative. Start with a challenge or origin story, build through achievements, and end with vision. Make it memorable.",
+        "technical": "Rewrite this emphasizing technical depth and engineering excellence. Highlight specific technologies, architectures, and quantifiable technical outcomes.",
+    }
+
+    instruction = style_prompts.get(style, style_prompts["professional"])
+
+    # Include user context for better rewrites
+    user_context = ""
+    name = current_user.get("name", "")
+    title = current_user.get("professional_title") or current_user.get("headline", "")
+    if name or title:
+        user_context = f"\nContext: This person is {name}{', ' + title if title else ''}."
+
+    prompt = f"""{instruction}
+{user_context}
+
+Original text:
+\"\"\"{text}\"\"\"
+
+Return ONLY the rewritten text. No quotes, no explanation, no markdown."""
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=800,
+        )
+        rewritten = response.choices[0].message.content.strip().strip('"').strip("'")
+        return api_success({
+            "original": text,
+            "rewritten": rewritten,
+            "style": style,
+        })
+    except Exception as e:
+        return api_error("AI_ERROR", f"Rewrite failed: {str(e)}", 500)
+
+
+# ------------------------------------------------------------------
+# POST /profile/text-to-speech  (OpenAI TTS for founder intro)
+# ------------------------------------------------------------------
+
+@profile_bp.route("/text-to-speech", methods=["POST"])
+@token_required
+def text_to_speech(current_user):
+    """Convert text to speech using OpenAI TTS."""
+    data = request.json or {}
+    text = (data.get("text") or "").strip()
+    voice = data.get("voice", "alloy")  # alloy, echo, fable, onyx, nova, shimmer
+
+    if not text:
+        return api_error("BAD_REQUEST", "Text is required", 400)
+    if len(text) > 4096:
+        return api_error("BAD_REQUEST", "Text too long for TTS (max 4096 chars)", 400)
+
+    try:
+        from flask import send_file
+        response = openai_client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text,
+        )
+        audio_bytes = response.content
+        return send_file(
+            io.BytesIO(audio_bytes),
+            mimetype="audio/mpeg",
+            as_attachment=False,
+            download_name="intro.mp3",
+        )
+    except Exception as e:
+        return api_error("TTS_ERROR", f"Text-to-speech failed: {str(e)}", 500)
+
+
+# ------------------------------------------------------------------
+# POST /profile/speech-to-text  (OpenAI Whisper for voice input)
+# ------------------------------------------------------------------
+
+@profile_bp.route("/speech-to-text", methods=["POST"])
+@token_required
+def speech_to_text(current_user):
+    """Transcribe voice input using OpenAI Whisper."""
+    if "audio" not in request.files:
+        return api_error("BAD_REQUEST", "Audio file is required", 400)
+
+    audio_file = request.files["audio"]
+    try:
+        transcript = openai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(audio_file.filename or "audio.webm", audio_file.read(), audio_file.content_type or "audio/webm"),
+        )
+        return api_success({
+            "text": transcript.text,
+        })
+    except Exception as e:
+        return api_error("STT_ERROR", f"Speech-to-text failed: {str(e)}", 500)
 
 
 # ------------------------------------------------------------------
