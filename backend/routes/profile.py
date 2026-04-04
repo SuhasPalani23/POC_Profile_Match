@@ -943,14 +943,23 @@ def scrape_linkedin(current_user):
     user_m = _re.search(r"linkedin\.com/in/([^/?#\s]+)", user_linkedin)
     user_username = user_m.group(1).lower() if user_m else ''
 
-    # Allow scrape if: (a) no stored URL yet (first time), or (b) URLs match
     if user_linkedin and user_username and username.lower() != user_username:
+        # URL already locked to a different profile — block
         return api_error(
             "LINKEDIN_URL_MISMATCH",
-            f"You can only scrape your own LinkedIn profile. You authenticated as '{user_username}' but requested '{username}'.",
+            f"Your account is locked to '{user_username}'. You cannot scrape '{username}'. Disconnect and re-authenticate to change.",
             403,
             {"authenticatedUsername": user_username, "requestedUsername": username}
         )
+
+    if not user_linkedin:
+        # First scrape — lock this URL to the account IMMEDIATELY (before scraping)
+        # This prevents someone from scraping multiple profiles without saving
+        User.update_profile(current_user["_id"], {
+            "linkedinUrl": full_url,
+            "linkedin": full_url,
+        })
+        print(f"[scrape_linkedin] Locked URL {full_url} to user {current_user['_id']} on first scrape")
 
     PROFILE_ACTOR = os.getenv(
         "APIFY_ACTOR_ID",
@@ -1256,17 +1265,6 @@ SCRAPED POSTS DATA:
     replacement_fields["scrapedAt"] = datetime.utcnow()
     replacement_fields["extraFields"] = extra_fields
     replacement_fields["dynamicFieldLabels"] = dynamic_field_labels
-
-    # ── Validate scraped profile matches the OAuth identity ──
-    oauth_name = (current_user.get('linkedinOAuthName') or '').strip().lower()
-    scraped_name = f"{extracted.get('firstName', '')} {extracted.get('lastName', '')}".strip().lower()
-    if oauth_name and scraped_name and oauth_name.split()[0] != scraped_name.split()[0]:
-        # First name doesn't match — this isn't their profile
-        return api_error(
-            "IDENTITY_MISMATCH",
-            f"The scraped profile ({extracted.get('firstName', '')} {extracted.get('lastName', '')}) doesn't match your LinkedIn account ({current_user.get('linkedinOAuthName', '')}). You can only scrape your own profile.",
-            403,
-        )
 
     # ── DO NOT save to DB or index here ──
     # Scraped data is returned to the frontend only.
