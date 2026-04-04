@@ -431,15 +431,8 @@ export default function ProfileEdit({ user, onUpdate }) {
         setOauthAutoFilled(true);
       }
       const nameFromCallback = params.get('linkedin_name');
-      if (nameFromCallback) {
-        setAuthedName(nameFromCallback);
-        // Auto-suggest URL from name if no URL came back from callback
-        if (!urlFromCallback) {
-          const suggested = `https://www.linkedin.com/in/${nameFromCallback.toLowerCase().replace(/\s+/g, '')}`;
-          setLinkedinUrlInput(suggested);
-        }
-      }
-      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}! Confirm your URL and scrape.`);
+      if (nameFromCallback) setAuthedName(nameFromCallback);
+      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}! Enter your LinkedIn username and scrape.`);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('linkedin_error')) {
       setError(`LinkedIn login failed: ${params.get('linkedin_error')}`);
@@ -456,10 +449,6 @@ export default function ProfileEdit({ user, onUpdate }) {
         setAuthedLinkedinUrl(data.linkedinUrl);
         setLinkedinUrlInput(data.linkedinUrl);
         setOauthAutoFilled(true);
-      } else if (data?.linkedinAuthed && data?.linkedinOAuthName) {
-        // No stored URL yet — auto-suggest from OAuth name so user doesn't have to type
-        const suggested = `https://www.linkedin.com/in/${data.linkedinOAuthName.toLowerCase().replace(/\s+/g, '')}`;
-        setLinkedinUrlInput(suggested);
       }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -533,6 +522,8 @@ export default function ProfileEdit({ user, onUpdate }) {
       const merged = mergeProfile(buildInitialForm({}), profileData);
       setFormData(merged);
       setActiveScrapeUrl(normUrl(profileData?.linkedinUrl || linkedinUrlInput));
+      // Lock the URL after first successful scrape — backend already persisted it
+      if (!authedLinkedinUrl) setAuthedLinkedinUrl(linkedinUrlInput);
       if (deepPostInsights) setDiscoveredFields(deepPostInsights);
       if (sExtra) { setExtraFields(prev => { const m = { ...prev, ...sExtra }; setNewFieldKeys(new Set(Object.keys(sExtra))); setTimeout(() => setNewFieldKeys(new Set()), 3000); return m; }); }
       if (sLabels) setDynamicFieldLabels(prev => ({ ...prev, ...sLabels }));
@@ -709,18 +700,31 @@ export default function ProfileEdit({ user, onUpdate }) {
                 </>
               ) : (
                 <>
+                  {/* First time — user must enter their actual LinkedIn username */}
                   <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>
-                    Your LinkedIn profile URL is locked to your authenticated account.
+                    Enter your LinkedIn username to link your profile. This will be locked after your first scrape.
                   </p>
-                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    <div style={{ ...inputStyle, flex: 1, minWidth: 220, background: bg2, color: txt2, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                      {linkedinUrlInput || `https://www.linkedin.com/in/${(authedName || '').toLowerCase().replace(/\s+/g, '')}`}
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ flex: 1, minWidth: 220, display: 'flex', alignItems: 'center', background: bg1, border: `1px solid ${bdr2}`, borderRadius: P.borderRadius.md, overflow: 'hidden' }}>
+                      <span style={{ padding: '0.7rem 0 0.7rem 0.9rem', color: txt2, fontSize: P.typography.fontSize.sm, fontFamily: mono, whiteSpace: 'nowrap', userSelect: 'none' }}>linkedin.com/in/</span>
+                      <input
+                        type="text"
+                        placeholder="your-username"
+                        value={linkedinUrlInput.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\s/g, '').toLowerCase();
+                          setLinkedinUrlInput(val ? `https://www.linkedin.com/in/${val}` : '');
+                        }}
+                        style={{ ...inputStyle, border: 'none', background: 'transparent', paddingLeft: 0, flex: 1 }}
+                      />
                     </div>
                     <Button type="button" onClick={handleScrape} disabled={isScraping || scrapeCooldown > 0 || !linkedinUrlInput.trim()} variant="primary" size="sm">
-                      {isScraping ? 'Scraping...' : 'Scrape & Auto-fill'}
+                      {isScraping ? 'Scraping...' : !linkedinUrlInput.trim() ? 'Enter username' : 'Link & Scrape'}
                     </Button>
                   </div>
+                  <p style={{ fontSize: 10, color: txt2, marginTop: '0.5rem', fontStyle: 'italic' }}>
+                    Enter your exact LinkedIn username (e.g., suhaspalani, sachin-s-01). After scraping, this locks permanently.
+                  </p>
                 </>
               )}
               {postsScraped > 0 && <p style={{ fontSize: 11, color: txt2, marginTop: '0.75rem' }}>{postsScraped} posts deeply analyzed.</p>}
