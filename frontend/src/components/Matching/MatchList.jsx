@@ -5,6 +5,71 @@ import palette from "../../palette";
 import { collaborationAPI, matchingAPI, projectAPI } from "../../services/api";
 import Button from "../Common/Button";
 
+const preferredSkillOrder = [
+  "rag",
+  "llms",
+  "openai",
+  "vector databases",
+  "vector db",
+  "pinecone",
+  "chromadb",
+  "fastapi",
+  "react",
+  "node.js",
+  "mongodb",
+  "python",
+  "nlp",
+  "machine learning",
+  "deep learning",
+  "aws",
+  "sql",
+];
+
+const noisySkillTerms = new Set([
+  "share",
+  "excited",
+  "collaborative",
+  "positive environment",
+  "attention to detail",
+  "teamwork",
+  "communication",
+  "problem solving",
+  "analytical thinking",
+  "working under pressure",
+  "research",
+  "presentation",
+  "effective communication",
+  "more technical and business analyst skills",
+  "development and designing role",
+]);
+
+const normalizeSkill = (value) => String(value || "").toLowerCase().trim();
+
+const buildVisibleSkills = (skills = []) => {
+  const filtered = [];
+  const seen = new Set();
+
+  skills.forEach((skill) => {
+    const normalized = normalizeSkill(skill);
+    if (!normalized || noisySkillTerms.has(normalized) || seen.has(normalized)) return;
+    seen.add(normalized);
+    filtered.push(skill);
+  });
+
+  return filtered
+    .sort((a, b) => {
+      const aNorm = normalizeSkill(a);
+      const bNorm = normalizeSkill(b);
+      const aPriority = preferredSkillOrder.findIndex((item) => aNorm.includes(item) || item.includes(aNorm));
+      const bPriority = preferredSkillOrder.findIndex((item) => bNorm.includes(item) || item.includes(bNorm));
+      const aRank = aPriority === -1 ? 999 : aPriority;
+      const bRank = bPriority === -1 ? 999 : bPriority;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.localeCompare(b);
+    })
+    .slice(0, 18);
+};
+
 const notify = (type, message) => {
   window.dispatchEvent(new CustomEvent("app-toast", { detail: { type, message } }));
 };
@@ -218,6 +283,7 @@ const MatchList = ({ user }) => {
           {matches.map((match, index) => {
             const isExpanded = expandedCards[match.user_id];
             const subscores = match.explanation?.subscores || {};
+            const visibleSkills = buildVisibleSkills(match.skills || []);
 
             return (
               <div
@@ -249,7 +315,7 @@ const MatchList = ({ user }) => {
                     </p>
 
                     <div style={{ display: "flex", flexWrap: "wrap", gap: palette.spacing.xs, marginBottom: palette.spacing.md }}>
-                      {(match.skills || []).map((skill, skillIndex) => (
+                      {visibleSkills.map((skill, skillIndex) => (
                         <span
                           key={skillIndex}
                           style={{

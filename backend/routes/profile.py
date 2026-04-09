@@ -23,7 +23,7 @@ from utils.validation import validate_required_fields
 from services.background_tasks import enqueue
 from openai import OpenAI
 from config import Config
-from services.openai_service import analyze_posts_deeply, founder_chatbot_respond
+from services.openai_service import analyze_posts_deeply, founder_chatbot_respond, normalize_profile_data
 
 openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
 
@@ -151,22 +151,64 @@ PROFILE_RESET_DEFAULTS = {
 # Background: push updated vector to Pinecone
 # ------------------------------------------------------------------
 
+def _safe_emit_vector_update(user_id, status):
+    try:
+        if ws_service and hasattr(ws_service, 'emit_vector_update'):
+            ws_service.emit_vector_update(user_id, status)
+    except Exception as e:
+        print(f"[_safe_emit_vector_update] Warning: {e}")
+
 def _upsert_user_vector_bg(user_id: str):
     service = get_vector_service()
     if service is None:
-        ws_service.emit_vector_update(user_id, "failed")
+        _safe_emit_vector_update(user_id, "failed")
         return
     try:
         user = User.find_by_id(user_id)
         if user:
+            # 1. GENERATE CANONICAL NORMALIZED PROFILE FIRST
+            try:
+                # Group data to match fine-tune expectation
+                normalized = normalize_profile_data(
+                    linkedin_data={
+                        "about": user.get("about"),
+                        "aboutMe": user.get("aboutMe"),
+                        "experience": user.get("experience"),
+                        "headline": user.get("headline"),
+                        "skills": user.get("skills"),
+                        "tools": user.get("tools"),
+                        "coreDomains": user.get("coreDomains"),
+                        "interests": user.get("interests"),
+                        "professional_title": user.get("professional_title"),
+                        "currentPosition": user.get("currentPosition"),
+                        "currentCompany": user.get("currentCompany"),
+                        "experience_years": user.get("experience_years"),
+                        "totalYearsExperience": user.get("totalYearsExperience"),
+                    },
+                    resume_data={
+                        "bio": user.get("bio"),
+                        "skills": user.get("skills"),
+                        "tools": user.get("tools"),
+                        "resume_text": user.get("resume_text"),
+                        "experience_years": user.get("experience_years"),
+                    },
+                    questionnaire_data=user.get("extraFields", {})
+                )
+                if normalized:
+                    user["normalized_profile"] = normalized
+                    User.update_profile(user_id, {"normalized_profile": normalized})
+            except Exception as e:
+                print(f"[_upsert_user_vector_bg] Normalization failed: {e}")
+
+            # 2. UPSERT CLEAN DATA TO PINECONE
             ok = service.upsert_user(user)
             status = "completed" if ok else "failed"
         else:
             status = "failed"
-        ws_service.emit_vector_update(user_id, status)
+        _safe_emit_vector_update(user_id, status)
     except Exception as e:
         print(f"[profile] Vector upsert error: {e}")
-        ws_service.emit_vector_update(user_id, "failed")
+        _safe_emit_vector_update(user_id, "failed")
 
 
 def _start_vector_upsert(user_id: str):
@@ -892,6 +934,38 @@ def _infer_field_from_latest_reply(latest_text: str, remaining_fields: list[str]
                 break
 
     return inferred
+def _extract_image_id(url):
+    if not url:
+        return None
+    import re
+    cleaned = str(url).strip()
+    patterns = [
+        r"/image(?:/v2)?/([A-Za-z0-9_-]{5,})/",
+        r"/dms/image/([A-Za-z0-9_-]{5,})",
+        r"/profile-displayphoto-[^/]+/([A-Za-z0-9_-]{5,})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, cleaned)
+        if match:
+            return match.group(1).lower()
+    return cleaned.split("?", 1)[0].rstrip("/").lower()
+
+
+def _normalize_linkedin_username(value):
+    raw = str(value or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    match = _re.search(r"linkedin\.com/in/([^/?#\s]+)", raw, _re.IGNORECASE)
+    if match:
+        return match.group(1).strip().lower()
+    if "/" not in raw and "." not in raw:
+        return raw.lower()
+    tail = raw.split("/")[-1].strip()
+    return tail.lower()
+
+
+def _normalize_person_name(value):
+    return _re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
 
 
 # ------------------------------------------------------------------
@@ -910,7 +984,7 @@ def scrape_linkedin(current_user):
             {"requiresLinkedinAuth": True}
         )
 
-    data = request.json
+    data = request.json or {}
     linkedin_url = (data.get('linkedinUrl') or '').strip().rstrip('/')
 
     if not linkedin_url:
@@ -920,17 +994,8 @@ def scrape_linkedin(current_user):
     if not apify_token:
         return api_error("CONFIG_ERROR", "APIFY_TOKEN not configured", 500)
 
-    # Normalise to username + full URL
-    m = _re.search(r"linkedin\.com/in/([^/?#\s]+)", linkedin_url)
-    if m:
-        username = m.group(1)
-        full_url = f"https://www.linkedin.com/in/{username}"
-    elif '/' not in linkedin_url and '.' not in linkedin_url:
-        username = linkedin_url
-        full_url = f"https://www.linkedin.com/in/{username}"
-    else:
-        full_url = linkedin_url
-        username = linkedin_url.split('/')[-1]
+    username = _normalize_linkedin_username(linkedin_url) if linkedin_url else ""
+    full_url = f"https://www.linkedin.com/in/{username}" if username else ""
 
     # Enforce own-profile-only: the user consented to scrape THEIR profile,
     # not someone else's. Compare against the user's known LinkedIn URL.
@@ -939,7 +1004,6 @@ def scrape_linkedin(current_user):
         or current_user.get('linkedin')
         or ''
     ).strip().rstrip('/').lower()
-    # Extract username from the user's stored LinkedIn URL for comparison
     user_m = _re.search(r"linkedin\.com/in/([^/?#\s]+)", user_linkedin)
     user_username = user_m.group(1).lower() if user_m else ''
 
@@ -951,15 +1015,6 @@ def scrape_linkedin(current_user):
             403,
             {"authenticatedUsername": user_username, "requestedUsername": username}
         )
-
-    if not user_linkedin:
-        # First scrape — lock this URL to the account IMMEDIATELY (before scraping)
-        # This prevents someone from scraping multiple profiles without saving
-        User.update_profile(current_user["_id"], {
-            "linkedinUrl": full_url,
-            "linkedin": full_url,
-        })
-        print(f"[scrape_linkedin] Locked URL {full_url} to user {current_user['_id']} on first scrape")
 
     PROFILE_ACTOR = os.getenv(
         "APIFY_ACTOR_ID",
@@ -981,6 +1036,36 @@ def scrape_linkedin(current_user):
 
     if not profile_items:
         return api_error("NO_DATA", "No profile data returned from LinkedIn scraper", 404)
+
+    # ---- Profile Picture Verification ----
+    scraped_profile = profile_items[0]
+    b_info = scraped_profile.get("basic_info") or {}
+    scraped_pic = str(b_info.get("profilePicture") or scraped_profile.get("profilePicUrl") or scraped_profile.get("profilePictureUrl") or scraped_profile.get("profilePicture") or "")
+    
+    oauth_picture = current_user.get("linkedinOAuthPicture", "")
+    oauth_img_id = _extract_image_id(oauth_picture)
+    scraped_img_id = _extract_image_id(scraped_pic)
+    
+    if oauth_img_id and scraped_img_id and oauth_img_id != scraped_img_id:
+        # Clear the lock since this was fraudulent/incorrect
+        User.update_profile(current_user["_id"], {"linkedinUrl": "", "linkedin": ""})
+        return api_error(
+            "VERIFICATION_FAILED",
+            "Profile picture mismatch. The profile picture on this URL does not match your authenticated LinkedIn account.",
+            403
+        )
+    elif not oauth_img_id or not scraped_img_id:
+        # Fallback to name check if pictures are missing
+        oauth_name = current_user.get("linkedinOAuthName", "").lower().replace(" ", "")
+        s_full_name = str(b_info.get("fullName") or scraped_profile.get("fullName") or "").lower().replace(" ", "")
+        if oauth_name and s_full_name:
+            if oauth_name not in s_full_name and s_full_name not in oauth_name:
+                User.update_profile(current_user["_id"], {"linkedinUrl": "", "linkedin": ""})
+                return api_error(
+                    "VERIFICATION_FAILED", 
+                    f"Profile mismatch. Authenticated as '{current_user.get('linkedinOAuthName')}', but scraped profile is '{str(b_info.get('fullName') or scraped_profile.get('fullName'))}'.", 
+                    403
+                )
 
     # ---- Posts scrape (best-effort) ----
     posts_items = []

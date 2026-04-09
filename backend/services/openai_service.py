@@ -1,6 +1,7 @@
 """OpenAI-powered LLM service for post analysis and founder profiling chatbot."""
 
 import json
+import re
 from openai import OpenAI
 from config import Config
 
@@ -184,4 +185,215 @@ CRITICAL RULES:
             "nextQuestion": "",
             "conversationComplete": False,
             "fieldLabels": {},
+        }
+
+
+def normalize_profile_data(linkedin_data, resume_data, questionnaire_data):
+    """
+    Uses the custom fine-tuned model to merge and normalize data 
+    from multiple sources into a canonical profile.
+    """
+    system_prompt = (
+        "You are an expert AI recruiter and data normalizer. "
+        "Your job is to take raw, messy data from LinkedIn, Resumes, and User Questionnaires, "
+        "and synthesize it into a clean, canonical JSON profile. This normalized profile will be "
+        "used for high-accuracy startup compatibility matching. Return ONLY valid JSON.\n\n"
+        "EXPECTED JSON SCHEMA:\n"
+        "{\n"
+        "  \"canonical_skills\": [], // Extract ALL skills, tools, and technical terms from all fields (including unique_value)\n"
+        "  \"core_domains\": [], // The overarching domains\n"
+        "  \"primary_role\": \"\", // Best guess at their main title\n"
+        "  \"unified_profile_summary\": \"\",\n"
+        "  \"total_experience_years\": 0,\n"
+        "  \"startup_compatibility_flags\": []\n"
+        "}\n\n"
+        "CRITICAL RULE: DO NOT hallucinate. Include EXACT specialized skills (like RAG, Vectors, FastAPI, LLMs, React) found in the input payload!"
+    )
+    
+    user_payload = {
+        "linkedin": linkedin_data or {},
+        "resume": resume_data or {},
+        "questionnaire": questionnaire_data or {}
+    }
+
+    def _split_terms(value):
+        if not value:
+            return []
+        if isinstance(value, list):
+            out = []
+            for item in value:
+                out.extend(_split_terms(item))
+            return out
+        if isinstance(value, dict):
+            out = []
+            for item in value.values():
+                out.extend(_split_terms(item))
+            return out
+
+        text = str(value)
+        parts = re.split(r"[\n,;/|]+", text)
+        cleaned = []
+        for part in parts:
+            term = re.sub(r"\s+", " ", part).strip(" -*:\t")
+            if 1 <= len(term) <= 80:
+                cleaned.append(term)
+        return cleaned
+
+    def _extract_keywords(*values):
+        text = " ".join(str(v) for v in values if v)
+        if not text:
+            return []
+
+        patterns = [
+            r"\bRAG\b",
+            r"\bLLM(?:s)?\b",
+            r"\bFastAPI\b",
+            r"\bReact(?:\.js)?\b",
+            r"\bNode(?:\.js)?\b",
+            r"\bMongoDB\b",
+            r"\bPinecone\b",
+            r"\bChromaDB\b",
+            r"\bVector DB\b",
+            r"\bVector Database(?:s)?\b",
+            r"\bOpenAI\b",
+            r"\bGenerative AI\b",
+            r"\bMachine Learning\b",
+            r"\bDeep Learning\b",
+            r"\bNatural Language Processing\b",
+            r"\bComputer Vision\b",
+            r"\bPython\b",
+            r"\bTensorFlow\b",
+            r"\bPyTorch\b",
+            r"\bScikit-learn\b",
+            r"\bSQL\b",
+            r"\bMySQL\b",
+            r"\bStreamlit\b",
+            r"\bTableau\b",
+            r"\bPower BI\b",
+            r"\bAWS\b",
+            r"\bJupyter(?: Notebook)?\b",
+            r"\bOpenCV\b",
+            r"\bGemini\b",
+            r"\bVertex AI\b",
+            r"\bResponsive Design\b",
+            r"\bJavaScript\b",
+            r"\bHTML\b",
+            r"\bCSS\b",
+        ]
+
+        found = []
+        for pattern in patterns:
+            for match in re.findall(pattern, text, flags=re.IGNORECASE):
+                found.append(match)
+        return found
+
+    def _dedupe_keep_order(values):
+        seen = set()
+        out = []
+        for value in values:
+            cleaned = re.sub(r"\s+", " ", str(value or "")).strip(" ,")
+            if not cleaned:
+                continue
+            key = cleaned.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(cleaned)
+        return out
+
+    deterministic_skills = _dedupe_keep_order(
+        _split_terms((linkedin_data or {}).get("skills"))
+        + _split_terms((linkedin_data or {}).get("tools"))
+        + _split_terms((resume_data or {}).get("skills"))
+        + _split_terms((resume_data or {}).get("tools"))
+        + _split_terms((questionnaire_data or {}).get("unique_value"))
+        + _split_terms((questionnaire_data or {}).get("domain_expertise"))
+        + _split_terms((questionnaire_data or {}).get("co_founder_expectations"))
+        + _extract_keywords(
+            (linkedin_data or {}).get("about"),
+            (linkedin_data or {}).get("aboutMe"),
+            (linkedin_data or {}).get("headline"),
+            (linkedin_data or {}).get("currentPosition"),
+            (resume_data or {}).get("resume_text"),
+            (resume_data or {}).get("bio"),
+            (questionnaire_data or {}).get("unique_value"),
+            (questionnaire_data or {}).get("domain_expertise"),
+        )
+    )
+    deterministic_domains = _dedupe_keep_order(
+        _split_terms((linkedin_data or {}).get("coreDomains"))
+        + _split_terms((linkedin_data or {}).get("interests"))
+        + _split_terms((questionnaire_data or {}).get("industry_preferences"))
+        + _split_terms((questionnaire_data or {}).get("domain_expertise"))
+        + _extract_keywords(
+            (linkedin_data or {}).get("about"),
+            (linkedin_data or {}).get("headline"),
+            (resume_data or {}).get("bio"),
+            (questionnaire_data or {}).get("unique_value"),
+        )
+    )
+    summary_parts = [
+        (linkedin_data or {}).get("headline"),
+        (linkedin_data or {}).get("about"),
+        (linkedin_data or {}).get("aboutMe"),
+        (resume_data or {}).get("bio"),
+        (questionnaire_data or {}).get("unique_value"),
+    ]
+    fallback_summary = " ".join(str(part).strip() for part in summary_parts if part).strip()
+    fallback_role = (
+        (linkedin_data or {}).get("professional_title")
+        or (linkedin_data or {}).get("currentPosition")
+        or (linkedin_data or {}).get("headline")
+        or ""
+    )
+    fallback_experience = (
+        (linkedin_data or {}).get("experience_years")
+        or (linkedin_data or {}).get("totalYearsExperience")
+        or (resume_data or {}).get("experience_years")
+        or 0
+    )
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}
+    ]
+    
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.1,  
+            response_format={"type": "json_object"}
+        )
+        raw = response.choices[0].message.content.strip()
+        normalized = json.loads(raw)
+        normalized["canonical_skills"] = _dedupe_keep_order(
+            (normalized.get("canonical_skills") or []) + deterministic_skills
+        )
+        normalized["core_domains"] = _dedupe_keep_order(
+            (normalized.get("core_domains") or []) + deterministic_domains
+        )
+        if not normalized.get("primary_role"):
+            normalized["primary_role"] = fallback_role
+        if not normalized.get("unified_profile_summary"):
+            normalized["unified_profile_summary"] = fallback_summary[:1200]
+        if not normalized.get("total_experience_years"):
+            try:
+                normalized["total_experience_years"] = int(re.search(r"\d+", str(fallback_experience)).group())
+            except Exception:
+                normalized["total_experience_years"] = 0
+        normalized["startup_compatibility_flags"] = _dedupe_keep_order(
+            normalized.get("startup_compatibility_flags") or []
+        )
+        return normalized
+    except Exception as e:
+        print(f"[openai_service] Normalization error: {e}")
+        return {
+            "canonical_skills": deterministic_skills,
+            "core_domains": deterministic_domains,
+            "primary_role": fallback_role,
+            "unified_profile_summary": fallback_summary[:1200],
+            "total_experience_years": int(re.search(r"\d+", str(fallback_experience)).group()) if re.search(r"\d+", str(fallback_experience)) else 0,
+            "startup_compatibility_flags": [],
         }

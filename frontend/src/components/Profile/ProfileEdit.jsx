@@ -432,7 +432,7 @@ export default function ProfileEdit({ user, onUpdate }) {
       }
       const nameFromCallback = params.get('linkedin_name');
       if (nameFromCallback) setAuthedName(nameFromCallback);
-      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}! Enter your LinkedIn username and scrape.`);
+      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}. Your scrape will only be allowed for the same LinkedIn account.`);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('linkedin_error')) {
       setError(`LinkedIn login failed: ${params.get('linkedin_error')}`);
@@ -523,7 +523,7 @@ export default function ProfileEdit({ user, onUpdate }) {
       setFormData(merged);
       setActiveScrapeUrl(normUrl(profileData?.linkedinUrl || linkedinUrlInput));
       // Lock the URL after first successful scrape — backend already persisted it
-      if (!authedLinkedinUrl) setAuthedLinkedinUrl(linkedinUrlInput);
+      if (!authedLinkedinUrl) setAuthedLinkedinUrl(profileData?.linkedinUrl || linkedinUrlInput);
       if (deepPostInsights) setDiscoveredFields(deepPostInsights);
       if (sExtra) { setExtraFields(prev => { const m = { ...prev, ...sExtra }; setNewFieldKeys(new Set(Object.keys(sExtra))); setTimeout(() => setNewFieldKeys(new Set()), 3000); return m; }); }
       if (sLabels) setDynamicFieldLabels(prev => ({ ...prev, ...sLabels }));
@@ -686,7 +686,6 @@ export default function ProfileEdit({ user, onUpdate }) {
 
               {authedLinkedinUrl ? (
                 <>
-                  {/* URL is locked — already scraped before */}
                   <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>Your LinkedIn profile is locked to your authenticated account.</p>
                   <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                     <div style={{ ...inputStyle, flex: 1, minWidth: 220, background: bg2, color: txt2, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -700,7 +699,6 @@ export default function ProfileEdit({ user, onUpdate }) {
                 </>
               ) : (
                 <>
-                  {/* First time — user must enter their actual LinkedIn username */}
                   <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>
                     Enter your LinkedIn username to link your profile. This will be locked after your first scrape.
                   </p>

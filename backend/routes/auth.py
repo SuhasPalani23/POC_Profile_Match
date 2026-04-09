@@ -301,6 +301,7 @@ def linkedin_callback():
     linkedin_email = ""
     linkedin_name = ""
     linkedin_sub = ""
+    linkedin_picture = ""
     try:
         profile_resp = http_requests.get(LINKEDIN_PROFILE_URL, headers={
             'Authorization': f'Bearer {access_token}'
@@ -310,6 +311,7 @@ def linkedin_callback():
             linkedin_email = li_profile.get('email', '')
             linkedin_name = li_profile.get('name', '')
             linkedin_sub = li_profile.get('sub', '')  # opaque member ID
+            linkedin_picture = li_profile.get('picture', '')
             print(f"[linkedin_callback] Got identity: name={linkedin_name} email={linkedin_email} sub={linkedin_sub}")
     except Exception as e:
         print(f"[linkedin_callback] userinfo error: {e}")
@@ -345,6 +347,8 @@ def linkedin_callback():
         update_data['linkedinOAuthName'] = linkedin_name
     if linkedin_sub:
         update_data['linkedinOAuthSub'] = linkedin_sub
+    if linkedin_picture:
+        update_data['linkedinOAuthPicture'] = linkedin_picture
     if linkedin_vanity_url:
         # We found their actual profile URL — lock it immediately
         update_data['linkedinUrl'] = linkedin_vanity_url
@@ -399,6 +403,7 @@ def linkedin_disconnect(current_user):
             "linkedinAuthedAt": "",
             "linkedinOAuthEmail": "",
             "linkedinOAuthName": "",
+            "linkedinOAuthPicture": "",
             "linkedinUrl": "",
             "linkedin": "",
             "linkedin_scraped": "",
