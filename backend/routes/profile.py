@@ -975,15 +975,6 @@ def _normalize_person_name(value):
 @profile_bp.route("/scrape-linkedin", methods=["POST"])
 @token_required
 def scrape_linkedin(current_user):
-    # Require LinkedIn OAuth consent before scraping
-    if not current_user.get('linkedinAuthed'):
-        return api_error(
-            "LINKEDIN_AUTH_REQUIRED",
-            "You must login with LinkedIn before scraping. Please authenticate via LinkedIn first.",
-            403,
-            {"requiresLinkedinAuth": True}
-        )
-
     data = request.json or {}
     linkedin_url = (data.get('linkedinUrl') or '').strip().rstrip('/')
 
@@ -996,25 +987,6 @@ def scrape_linkedin(current_user):
 
     username = _normalize_linkedin_username(linkedin_url) if linkedin_url else ""
     full_url = f"https://www.linkedin.com/in/{username}" if username else ""
-
-    # Enforce own-profile-only: the user consented to scrape THEIR profile,
-    # not someone else's. Compare against the user's known LinkedIn URL.
-    user_linkedin = (
-        current_user.get('linkedinUrl')
-        or current_user.get('linkedin')
-        or ''
-    ).strip().rstrip('/').lower()
-    user_m = _re.search(r"linkedin\.com/in/([^/?#\s]+)", user_linkedin)
-    user_username = user_m.group(1).lower() if user_m else ''
-
-    if user_linkedin and user_username and username.lower() != user_username:
-        # URL already locked to a different profile — block
-        return api_error(
-            "LINKEDIN_URL_MISMATCH",
-            f"Your account is locked to '{user_username}'. You cannot scrape '{username}'. Disconnect and re-authenticate to change.",
-            403,
-            {"authenticatedUsername": user_username, "requestedUsername": username}
-        )
 
     PROFILE_ACTOR = os.getenv(
         "APIFY_ACTOR_ID",
@@ -1036,36 +1008,6 @@ def scrape_linkedin(current_user):
 
     if not profile_items:
         return api_error("NO_DATA", "No profile data returned from LinkedIn scraper", 404)
-
-    # ---- Profile Picture Verification ----
-    scraped_profile = profile_items[0]
-    b_info = scraped_profile.get("basic_info") or {}
-    scraped_pic = str(b_info.get("profilePicture") or scraped_profile.get("profilePicUrl") or scraped_profile.get("profilePictureUrl") or scraped_profile.get("profilePicture") or "")
-    
-    oauth_picture = current_user.get("linkedinOAuthPicture", "")
-    oauth_img_id = _extract_image_id(oauth_picture)
-    scraped_img_id = _extract_image_id(scraped_pic)
-    
-    if oauth_img_id and scraped_img_id and oauth_img_id != scraped_img_id:
-        # Clear the lock since this was fraudulent/incorrect
-        User.update_profile(current_user["_id"], {"linkedinUrl": "", "linkedin": ""})
-        return api_error(
-            "VERIFICATION_FAILED",
-            "Profile picture mismatch. The profile picture on this URL does not match your authenticated LinkedIn account.",
-            403
-        )
-    elif not oauth_img_id or not scraped_img_id:
-        # Fallback to name check if pictures are missing
-        oauth_name = current_user.get("linkedinOAuthName", "").lower().replace(" ", "")
-        s_full_name = str(b_info.get("fullName") or scraped_profile.get("fullName") or "").lower().replace(" ", "")
-        if oauth_name and s_full_name:
-            if oauth_name not in s_full_name and s_full_name not in oauth_name:
-                User.update_profile(current_user["_id"], {"linkedinUrl": "", "linkedin": ""})
-                return api_error(
-                    "VERIFICATION_FAILED", 
-                    f"Profile mismatch. Authenticated as '{current_user.get('linkedinOAuthName')}', but scraped profile is '{str(b_info.get('fullName') or scraped_profile.get('fullName'))}'.", 
-                    403
-                )
 
     # ---- Posts scrape (best-effort) ----
     posts_items = []
@@ -1182,7 +1124,7 @@ SCRAPED POSTS DATA:
 {json.dumps(posts_for_llm, ensure_ascii=False)}
 {posts_section}"""
 
-    # ---- Call Llama with retry backoff (best-effort) ----
+    # ---- Call LLM with retry backoff (best-effort) ----
     #
     # IMPORTANT:
     # OpenAI can return 429 (rate limit) or other transient errors.
@@ -1730,7 +1672,7 @@ def upload_resume(current_user):
     2. Delete old GridFS file if exists
     3. Store new file in GridFS (MongoDB) → file_id
     4. Write bytes to temp file for parsing
-    5. Llama LLM analysis: skills, experience, summary
+    5. LLM analysis: skills, experience, summary
     6. Store resume_text + file_id on user document in MongoDB
     7. Upsert Pinecone vector in background (includes resume_text)
     8. Delete temp file
@@ -1789,7 +1731,7 @@ def upload_resume(current_user):
             tmp.write(file_bytes)
             tmp_path = tmp.name
 
-        # Full LLM analysis via Llama
+        # Full LLM analysis
         analysis = ats_service.comprehensive_profile_analysis(current_user, tmp_path)
 
     except Exception as e:
@@ -2029,7 +1971,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
     try:
-        result = ats_service.llama_service.generate_json(prompt)
+        result = ats_service.llm_service.generate_json(prompt)
         return api_success(result if result else {"suggested_skills": []}, message="Skill suggestions fetched")
     except Exception as e:
         return api_error("SKILLS_SUGGESTIONS_FAILED", str(e), 500)

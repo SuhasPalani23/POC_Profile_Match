@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { profileAPI, linkedinAuthAPI } from '../../services/api';
+import { profileAPI } from '../../services/api';
 import Button from '../Common/Button';
 import palette from '../../palette';
 
@@ -65,44 +65,6 @@ const Field = ({ text, children }) => <div style={{ marginBottom: '1.15rem' }}><
 const LinkedInIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
 );
-
-/* ─── Consent Modal ─── */
-function ConsentModal({ onAgree, onCancel }) {
-  const [scrolledToBottom, setScrolledToBottom] = useState(false);
-  const scrollRef = useRef(null);
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 30) setScrolledToBottom(true);
-  };
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
-      <div style={{ width: '90%', maxWidth: 540, maxHeight: '80vh', background: bg0, border: `1px solid ${bdr}`, borderRadius: P.borderRadius.xl, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <LinkedInIcon />
-          <span style={{ fontFamily: mono, fontSize: P.typography.fontSize.sm, letterSpacing: '0.08em', textTransform: 'uppercase', color: txt }}>Terms & Consent</span>
-        </div>
-        <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', fontSize: P.typography.fontSize.sm, color: txt2, lineHeight: 1.8 }}>
-          <h3 style={{ color: txt, marginBottom: '0.75rem', fontWeight: 500 }}>LinkedIn Data Access Consent</h3>
-          <p>By clicking "I Agree", you consent to the following terms regarding your LinkedIn profile data:</p>
-          <p style={{ marginTop: '1rem' }}><strong style={{ color: txt }}>1. Data Collection.</strong> We will access your public LinkedIn profile information including your name, headline, work experience, education, skills, certifications, and public posts. This data is collected solely to auto-fill your profile on the Founding Mindset platform and to provide AI-driven insights about your professional background.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>2. Purpose.</strong> The collected data will be used exclusively for: (a) populating your profile fields, (b) analyzing your posts to discover areas of interest and expertise, (c) matching you with potential co-founders, and (d) generating personalized recommendations based on your professional background.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>3. Data Processing.</strong> Your LinkedIn data may be processed by AI systems (OpenAI) to extract structured information such as skills, domains, and career insights. This processing is done in real-time and is not stored beyond what is saved to your profile on our platform.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>4. Data Storage.</strong> Only the structured profile information extracted from your LinkedIn data will be stored in our database as part of your user profile. Raw LinkedIn API responses are not permanently stored.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>5. Data Sharing.</strong> Your profile data may be visible to other users of the platform for co-founder matching purposes. We do not sell or share your data with third parties for marketing purposes.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>6. Revocation.</strong> You can revoke this consent at any time by disconnecting your LinkedIn account from your profile settings. Previously collected data that has been saved to your profile will remain unless you manually delete it or request account deletion.</p>
-          <p style={{ marginTop: '0.75rem' }}><strong style={{ color: txt }}>7. Security.</strong> We implement industry-standard security measures to protect your data including encrypted connections, secure token storage, and access controls.</p>
-          <p style={{ marginTop: '1rem', fontSize: P.typography.fontSize.xs, color: txt2 }}>Last updated: April 2026. By proceeding, you acknowledge that you have read and understood these terms.</p>
-        </div>
-        <div style={{ padding: '1rem 1.5rem', borderTop: `1px solid ${bdr}`, display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', background: bg2 }}>
-          <Button type="button" onClick={onCancel} variant="outline" size="sm">Cancel</Button>
-          <Button type="button" onClick={onAgree} disabled={!scrolledToBottom} variant="primary" size="sm">
-            {scrolledToBottom ? 'I Agree & Continue' : 'Scroll down to agree'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ─── Typeform-style Chatbot Overlay ─── */
 function TypeformChat({ messages, chatInput, setChatInput, onSend, loading, extraCount, onClose }) {
@@ -362,14 +324,6 @@ export default function ProfileEdit({ user, onUpdate }) {
   const [postsScraped, setPostsScraped] = useState(0);
   const [scrapeCooldown, setScrapeCooldown] = useState(0);
 
-  // LinkedIn OAuth
-  const [linkedinAuthed, setLinkedinAuthed] = useState(Boolean(user.linkedinAuthed));
-  const [linkedinAuthLoading, setLinkedinAuthLoading] = useState(false);
-  const [showConsent, setShowConsent] = useState(false);
-  const [authedLinkedinUrl, setAuthedLinkedinUrl] = useState(user.linkedinUrl || user.linkedin || '');
-  const [authedName, setAuthedName] = useState('');
-  const [authedEmail, setAuthedEmail] = useState('');
-
   // Typeform chatbot
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -417,120 +371,54 @@ export default function ProfileEdit({ user, onUpdate }) {
     return Math.min(100, Math.round(mustScore + profileScore + chatbotScore));
   }, [formData, chatbotAnswers]);
 
-  // Track whether we already auto-filled from OAuth redirect
-  const [oauthAutoFilled, setOauthAutoFilled] = useState(false);
-
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('linkedin_success') === 'true') {
-      setLinkedinAuthed(true);
-      const urlFromCallback = params.get('linkedin_url');
-      if (urlFromCallback) {
-        setLinkedinUrlInput(urlFromCallback);
-        setAuthedLinkedinUrl(urlFromCallback);
-        setOauthAutoFilled(true);
-      }
-      const nameFromCallback = params.get('linkedin_name');
-      if (nameFromCallback) setAuthedName(nameFromCallback);
-      setSuccess(`LinkedIn authenticated${nameFromCallback ? ` as ${nameFromCallback}` : ''}. Your scrape will only be allowed for the same LinkedIn account.`);
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (params.get('linkedin_error')) {
-      setError(`LinkedIn login failed: ${params.get('linkedin_error')}`);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    // Check persisted auth status, identity, and auto-fill URL
-    linkedinAuthAPI.getStatus().then(res => {
-      const data = res.data;
-      setLinkedinAuthed(Boolean(data?.linkedinAuthed));
-      if (data?.linkedinOAuthName) setAuthedName(data.linkedinOAuthName);
-      if (data?.linkedinOAuthEmail) setAuthedEmail(data.linkedinOAuthEmail);
-      if (data?.linkedinUrl) {
-        // URL already stored from previous scrape — lock it
-        setAuthedLinkedinUrl(data.linkedinUrl);
-        setLinkedinUrlInput(data.linkedinUrl);
-        setOauthAutoFilled(true);
-      }
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    setFormData(initialForm);
-    const userLinkedinUrl = user.linkedinUrl || user.linkedin || '';
-    // Don't overwrite URL if OAuth redirect already set it
-    if (userLinkedinUrl && !oauthAutoFilled) setLinkedinUrlInput(userLinkedinUrl);
-    setActiveScrapeUrl(normUrl(userLinkedinUrl));
-    setAuthedLinkedinUrl(prev => prev || userLinkedinUrl);
-    setExtraFields(user.extraFields || {});
-    setDynamicFieldLabels(user.dynamicFieldLabels || {});
-    setPostsScraped(0);
-    setError(''); setSuccess('');
-  }, [initialForm, user, oauthAutoFilled]);
+    const handler = (e) => { if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
 
   const tok = () => localStorage.getItem('token');
   const toArr = (v) => Array.isArray(v) ? v : splitList(v);
 
-  // Disconnect LinkedIn — full wipe, fresh start
-  const handleLinkedinDisconnect = async () => {
-    if (!window.confirm('Disconnect LinkedIn? This will remove all LinkedIn data and require fresh authentication.')) return;
-    try {
-      await linkedinAuthAPI.disconnect();
-      setLinkedinAuthed(false);
-      setAuthedLinkedinUrl('');
-      setAuthedName('');
-      setAuthedEmail('');
-      setLinkedinUrlInput('');
-      setOauthAutoFilled(false);
-      setSuccess('LinkedIn disconnected. All LinkedIn auth data removed.');
-      onUpdate();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to disconnect');
-    }
-  };
-
-  // LinkedIn consent -> OAuth
-  const handleLinkedinLoginClick = () => setShowConsent(true);
-  const handleConsentAgree = async () => {
-    setShowConsent(false);
-    setLinkedinAuthLoading(true); setError('');
-    try {
-      const res = await linkedinAuthAPI.getConsentUrl();
-      const url = res.data?.consentUrl || res.data?.details?.consentUrl;
-      if (url) window.location.href = url;
-      else setError('Failed to get LinkedIn consent URL');
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to initiate LinkedIn login');
-    } finally { setLinkedinAuthLoading(false); }
-  };
-
-  // Scrape
   const handleScrape = async () => {
     if (!linkedinUrlInput.trim()) return setError('Please enter a LinkedIn URL');
-    if (!linkedinAuthed) return setError('Please login with LinkedIn first');
     if (scrapeCooldown > 0) return setError(`Rate limit - wait ${scrapeCooldown}s`);
-    setIsScraping(true); setError(''); setSuccess('');
+    setIsScraping(true);
+    setError('');
+    setSuccess('');
     try {
       const requestedUrl = normUrl(linkedinUrlInput);
       if (requestedUrl && requestedUrl !== activeScrapeUrl) {
-        setFormData(initialForm); setExtraFields({}); setDynamicFieldLabels({});
-        setDiscoveredFields({}); setChatMessages([]); setPostsScraped(0);
+        setFormData(initialForm);
+        setExtraFields({});
+        setDynamicFieldLabels({});
+        setDiscoveredFields({});
+        setChatMessages([]);
+        setPostsScraped(0);
       }
-      const res = await axios.post(`${API}/api/profile/scrape-linkedin`, { linkedinUrl: linkedinUrlInput }, { headers: { Authorization: `Bearer ${tok()}` } });
+      const res = await axios.post(
+        `${API}/api/profile/scrape-linkedin`,
+        { linkedinUrl: linkedinUrlInput },
+        { headers: { Authorization: `Bearer ${tok()}` } }
+      );
       const d = res.data.details;
       const { profileData, postsScraped: ps, aiStatus, deepPostInsights, extraFields: sExtra, dynamicFieldLabels: sLabels } = d;
       setPostsScraped(ps || 0);
       const merged = mergeProfile(buildInitialForm({}), profileData);
       setFormData(merged);
       setActiveScrapeUrl(normUrl(profileData?.linkedinUrl || linkedinUrlInput));
-      // Lock the URL after first successful scrape — backend already persisted it
-      if (!authedLinkedinUrl) setAuthedLinkedinUrl(profileData?.linkedinUrl || linkedinUrlInput);
       if (deepPostInsights) setDiscoveredFields(deepPostInsights);
-      if (sExtra) { setExtraFields(prev => { const m = { ...prev, ...sExtra }; setNewFieldKeys(new Set(Object.keys(sExtra))); setTimeout(() => setNewFieldKeys(new Set()), 3000); return m; }); }
+      if (sExtra) {
+        setExtraFields(prev => {
+          const m = { ...prev, ...sExtra };
+          setNewFieldKeys(new Set(Object.keys(sExtra)));
+          setTimeout(() => setNewFieldKeys(new Set()), 3000);
+          return m;
+        });
+      }
       if (sLabels) setDynamicFieldLabels(prev => ({ ...prev, ...sLabels }));
       setHasUnsavedChanges(true);
       setSuccess(`Profile auto-filled from LinkedIn.${ps > 0 ? ` ${ps} posts analyzed.` : ''}${aiStatus !== 'ok' ? ' (AI limited)' : ''} Click Save to persist.`);
-
-      // Auto-popup typeform chatbot
       const intro = ps > 0
         ? `Great news! I analyzed your LinkedIn profile and ${ps} posts. I found some interesting insights about your expertise! Let me now understand your founder mindset better.`
         : `I've filled your profile from LinkedIn. Let me now learn about your founder/cofounder preferences to find you the best match.`;
@@ -542,17 +430,56 @@ export default function ProfileEdit({ user, onUpdate }) {
         const cd = cr.data;
         const reply = cd?.reply || cd?.details?.reply;
         if (reply) setChatMessages(prev => [...prev, { role: 'model', text: reply }]);
-      } catch { setChatMessages(prev => [...prev, { role: 'model', text: "Let's start! How many hours per week can you commit to a startup venture?" }]); }
-      finally { setChatLoading(false); }
+      } catch {
+        setChatMessages(prev => [...prev, { role: 'model', text: "Let's start! How many hours per week can you commit to a startup venture?" }]);
+      } finally {
+        setChatLoading(false);
+      }
     } catch (e) {
       const status = e.response?.status;
-      if (status === 403 && e.response?.data?.details?.requiresLinkedinAuth) { setLinkedinAuthed(false); setError('Please login with LinkedIn first.'); }
-      else if (status === 429) { let s = 60; setScrapeCooldown(s); const t = setInterval(() => { s--; setScrapeCooldown(s); if (s <= 0) clearInterval(t); }, 1000); setError(`Rate limited - wait ${s}s`); }
-      else setError(`Scraping failed: ${e.response?.data?.message || e.message}`);
-    } finally { setIsScraping(false); }
+      if (status === 429) {
+        let s = 60;
+        setScrapeCooldown(s);
+        const t = setInterval(() => {
+          s--;
+          setScrapeCooldown(s);
+          if (s <= 0) clearInterval(t);
+        }, 1000);
+        setError(`Rate limited - wait ${s}s`);
+      } else {
+        setError(`Scraping failed: ${e.response?.data?.message || e.message}`);
+      }
+    } finally {
+      setIsScraping(false);
+    }
   };
 
-  // Founder chatbot
+  const handleChange = (e) => { const { name, value, type, checked } = e.target; setFormData(p => ({ ...p, [name]: type === 'checkbox' ? checked : value })); setHasUnsavedChanges(true); setError(''); };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setLoading(true); setError(''); setSuccess(''); setVectorStatus('');
+    try {
+      await profileAPI.updateProfile({
+        ...formData, skills: toArr(formData.skills), tools: toArr(formData.tools), languages: toArr(formData.languages),
+        coreDomains: toArr(formData.coreDomains), interests: toArr(formData.interests),
+        experience_years: parseInt(formData.experience_years, 10) || parseInt(formData.totalYearsExperience, 10) || 0,
+        extraFields: { ...extraFields, ...chatbotAnswers },
+        dynamicFieldLabels: { ...dynamicFieldLabels, ...chatbotLabels },
+        chatbotFieldKeys: Object.keys(chatbotAnswers),
+      });
+      setHasUnsavedChanges(false); setSuccess('Profile saved.'); setVectorStatus('indexing');
+      setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500);
+    } catch (e2) { setError(e2.response?.data?.error || 'Failed to save profile'); } finally { setLoading(false); }
+  };
+
+  const handleResumeChange = (e) => { const f = e.target.files?.[0]; if (!f) return; if (!['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) return setError('Only PDF and DOCX'); if (f.size > 10 * 1024 * 1024) return setError('Max 10MB'); setResume(f); setError(''); };
+  const handleResumeUpload = async () => { if (!resume) return setError('Select a file'); setUploadingResume(true); setError(''); setVectorStatus(''); try { const fd = new FormData(); fd.append('resume', resume); const res = await profileAPI.uploadResume(fd); setSuccess('Resume uploaded.'); setVectorStatus('indexing'); setResumeAnalysis(res.data.details?.analysis || null); setResume(null); if (res.data.details?.analysis?.merged_skills) setFormData(p => ({ ...p, skills: res.data.details.analysis.merged_skills.join(', ') })); setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500); } catch (e) { setError(e.response?.data?.error || 'Upload failed'); } finally { setUploadingResume(false); } };
+  const handleDownloadResume = async () => { setDownloadingResume(true); setError(''); try { const res = await profileAPI.getResume(user._id); const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/pdf' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = user.resume || 'resume.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); } catch (e) { const d = e.response?.data; if (d instanceof Blob) { try { const t = JSON.parse(await d.text()); setError(t.error || 'Download failed'); } catch { setError('Download failed'); } } else setError(e.response?.data?.error || 'Download failed'); } finally { setDownloadingResume(false); } };
+  const handleDeleteResume = async () => { if (!window.confirm('Delete your resume?')) return; try { await profileAPI.deleteResume(); setSuccess('Resume deleted.'); setVectorStatus('indexing'); setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500); } catch (e) { setError(e.response?.data?.error || 'Delete failed'); } };
+
+  const missingBasic = ['firstName', 'lastName', 'headline', 'email'].filter(f => blank(formData[f])).length;
+  const extraFieldEntries = Object.entries(extraFields).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
+
   const handleChatSend = useCallback(async () => {
     if (!chatInput.trim()) return;
     const updated = [...chatMessages, { role: 'user', text: chatInput }];
@@ -589,43 +516,7 @@ export default function ProfileEdit({ user, onUpdate }) {
     } finally { setChatLoading(false); }
   }, [chatInput, chatMessages, formData, discoveredFields]);
 
-  // Warn before leaving with unsaved changes
-  useEffect(() => {
-    const handler = (e) => { if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; } };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [hasUnsavedChanges]);
-
-  const handleChange = (e) => { const { name, value, type, checked } = e.target; setFormData(p => ({ ...p, [name]: type === 'checkbox' ? checked : value })); setHasUnsavedChanges(true); setError(''); };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault(); setLoading(true); setError(''); setSuccess(''); setVectorStatus('');
-    try {
-      await profileAPI.updateProfile({
-        ...formData, skills: toArr(formData.skills), tools: toArr(formData.tools), languages: toArr(formData.languages),
-        coreDomains: toArr(formData.coreDomains), interests: toArr(formData.interests),
-        experience_years: parseInt(formData.experience_years, 10) || parseInt(formData.totalYearsExperience, 10) || 0,
-        extraFields: { ...extraFields, ...chatbotAnswers },
-        dynamicFieldLabels: { ...dynamicFieldLabels, ...chatbotLabels },
-        chatbotFieldKeys: Object.keys(chatbotAnswers),
-      });
-      setHasUnsavedChanges(false); setSuccess('Profile saved.'); setVectorStatus('indexing');
-      setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500);
-    } catch (e2) { setError(e2.response?.data?.error || 'Failed to save profile'); } finally { setLoading(false); }
-  };
-
-  const handleResumeChange = (e) => { const f = e.target.files?.[0]; if (!f) return; if (!['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.type)) return setError('Only PDF and DOCX'); if (f.size > 10 * 1024 * 1024) return setError('Max 10MB'); setResume(f); setError(''); };
-  const handleResumeUpload = async () => { if (!resume) return setError('Select a file'); setUploadingResume(true); setError(''); setVectorStatus(''); try { const fd = new FormData(); fd.append('resume', resume); const res = await profileAPI.uploadResume(fd); setSuccess('Resume uploaded.'); setVectorStatus('indexing'); setResumeAnalysis(res.data.details?.analysis || null); setResume(null); if (res.data.details?.analysis?.merged_skills) setFormData(p => ({ ...p, skills: res.data.details.analysis.merged_skills.join(', ') })); setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500); } catch (e) { setError(e.response?.data?.error || 'Upload failed'); } finally { setUploadingResume(false); } };
-  const handleDownloadResume = async () => { setDownloadingResume(true); setError(''); try { const res = await profileAPI.getResume(user._id); const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/pdf' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = user.resume || 'resume.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); } catch (e) { const d = e.response?.data; if (d instanceof Blob) { try { const t = JSON.parse(await d.text()); setError(t.error || 'Download failed'); } catch { setError('Download failed'); } } else setError(e.response?.data?.error || 'Download failed'); } finally { setDownloadingResume(false); } };
-  const handleDeleteResume = async () => { if (!window.confirm('Delete your resume?')) return; try { await profileAPI.deleteResume(); setSuccess('Resume deleted.'); setVectorStatus('indexing'); setTimeout(() => { setVectorStatus('done'); onUpdate(); }, 3500); } catch (e) { setError(e.response?.data?.error || 'Delete failed'); } };
-
-  const missingBasic = ['firstName', 'lastName', 'headline', 'email'].filter(f => blank(formData[f])).length;
-  const extraFieldEntries = Object.entries(extraFields).filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0));
-
   return <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '1.5rem', fontFamily: mono, color: txt, background: bg0 }}>
-
-    {/* Consent Modal */}
-    {showConsent && <ConsentModal onAgree={handleConsentAgree} onCancel={() => setShowConsent(false)} />}
 
     {/* Typeform Chatbot */}
     {showChatbot && <TypeformChat messages={chatMessages} chatInput={chatInput} setChatInput={setChatInput} onSend={handleChatSend} loading={chatLoading} extraCount={extraFieldEntries.length} onClose={() => setShowChatbot(false)} />}
@@ -643,91 +534,41 @@ export default function ProfileEdit({ user, onUpdate }) {
 
     <form onSubmit={handleSubmit} autoComplete="off">
 
-      {/* LinkedIn OAuth + Scrape */}
       <div style={{ marginBottom: '1.5rem', border: `1px solid ${bdr}`, borderRadius: P.borderRadius.lg, overflow: 'hidden' }}>
         <div style={{ width: '100%', padding: '0.95rem 1.25rem', background: bg2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: txt, fontFamily: mono, fontSize: P.typography.fontSize.xs, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <LinkedInIcon /> LinkedIn Connect
-            {linkedinAuthed && (
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: '#0a611a', color: '#0a6', border: '1px solid #0a644' }}>
-                Connected{authedName ? ` — ${authedName}` : ''}{authedEmail && !authedName ? ` — ${authedEmail}` : ''}
-              </span>
-            )}
+            <LinkedInIcon /> LinkedIn Scrape
           </span>
-          {linkedinAuthed && (
-            <button type="button" onClick={handleLinkedinDisconnect} style={{ background: 'none', border: `1px solid ${errColor}44`, borderRadius: P.borderRadius.md, color: errColor, fontFamily: mono, fontSize: 10, padding: '3px 10px', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Disconnect
-            </button>
-          )}
+          <Button type="button" onClick={() => { setLinkedinUrlInput(''); setActiveScrapeUrl(''); }} variant="outline" size="sm">
+            Clear URL
+          </Button>
         </div>
         <div style={{ padding: '1.25rem' }}>
-          {!linkedinAuthed ? (
-            <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-              <p style={{ fontSize: P.typography.fontSize.sm, color: txt2, marginBottom: '1rem', lineHeight: 1.6 }}>
-                To scrape your LinkedIn profile, you first need to login with LinkedIn.<br />This ensures we have your consent to access your profile data.
-              </p>
-              <Button type="button" onClick={handleLinkedinLoginClick} disabled={linkedinAuthLoading} variant="primary" size="lg">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <LinkedInIcon /> {linkedinAuthLoading ? 'Redirecting...' : 'Login with LinkedIn'}
-                </span>
-              </Button>
+          <p style={{ fontSize: P.typography.fontSize.sm, color: txt2, marginBottom: '1rem', lineHeight: 1.6 }}>
+            Paste your LinkedIn profile URL or username below. Scraping is handled by Apify in the backend, so no LinkedIn login is required.
+          </p>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 220, display: 'flex', alignItems: 'center', background: bg1, border: `1px solid ${bdr2}`, borderRadius: P.borderRadius.md, overflow: 'hidden' }}>
+              <span style={{ padding: '0.7rem 0 0.7rem 0.9rem', color: txt2, fontSize: P.typography.fontSize.sm, fontFamily: mono, whiteSpace: 'nowrap', userSelect: 'none' }}>linkedin.com/in/</span>
+              <input
+                type="text"
+                placeholder="your-username"
+                value={linkedinUrlInput.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, '')}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\s/g, '').toLowerCase();
+                  setLinkedinUrlInput(val ? `https://www.linkedin.com/in/${val}` : '');
+                }}
+                style={{ ...inputStyle, border: 'none', background: 'transparent', paddingLeft: 0, flex: 1 }}
+              />
             </div>
-          ) : (
-            <>
-              {/* Show connected identity */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', padding: '0.75rem 1rem', background: '#00aa660d', border: '1px solid #0a644', borderRadius: P.borderRadius.md }}>
-                <LinkedInIcon />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: P.typography.fontSize.sm, color: txt, fontWeight: 500 }}>{authedName || 'LinkedIn Account'}</div>
-                  {authedEmail && <div style={{ fontSize: P.typography.fontSize.xs, color: txt2 }}>{authedEmail}</div>}
-                </div>
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: '#0a611a', color: '#0a6', border: '1px solid #0a644' }}>Verified</span>
-              </div>
-
-              {authedLinkedinUrl ? (
-                <>
-                  <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>Your LinkedIn profile is locked to your authenticated account.</p>
-                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    <div style={{ ...inputStyle, flex: 1, minWidth: 220, background: bg2, color: txt2, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                      {authedLinkedinUrl}
-                    </div>
-                    <Button type="button" onClick={handleScrape} disabled={isScraping || scrapeCooldown > 0} variant="primary" size="sm">
-                      {isScraping ? 'Scraping...' : scrapeCooldown > 0 ? `Wait ${scrapeCooldown}s` : 'Scrape & Auto-fill'}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontSize: P.typography.fontSize.xs, color: txt2, marginBottom: '0.6rem' }}>
-                    Enter your LinkedIn username to link your profile. This will be locked after your first scrape.
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ flex: 1, minWidth: 220, display: 'flex', alignItems: 'center', background: bg1, border: `1px solid ${bdr2}`, borderRadius: P.borderRadius.md, overflow: 'hidden' }}>
-                      <span style={{ padding: '0.7rem 0 0.7rem 0.9rem', color: txt2, fontSize: P.typography.fontSize.sm, fontFamily: mono, whiteSpace: 'nowrap', userSelect: 'none' }}>linkedin.com/in/</span>
-                      <input
-                        type="text"
-                        placeholder="your-username"
-                        value={linkedinUrlInput.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\s/g, '').toLowerCase();
-                          setLinkedinUrlInput(val ? `https://www.linkedin.com/in/${val}` : '');
-                        }}
-                        style={{ ...inputStyle, border: 'none', background: 'transparent', paddingLeft: 0, flex: 1 }}
-                      />
-                    </div>
-                    <Button type="button" onClick={handleScrape} disabled={isScraping || scrapeCooldown > 0 || !linkedinUrlInput.trim()} variant="primary" size="sm">
-                      {isScraping ? 'Scraping...' : !linkedinUrlInput.trim() ? 'Enter username' : 'Link & Scrape'}
-                    </Button>
-                  </div>
-                  <p style={{ fontSize: 10, color: txt2, marginTop: '0.5rem', fontStyle: 'italic' }}>
-                    Enter your exact LinkedIn username (e.g., suhaspalani, sachin-s-01). After scraping, this locks permanently.
-                  </p>
-                </>
-              )}
-              {postsScraped > 0 && <p style={{ fontSize: 11, color: txt2, marginTop: '0.75rem' }}>{postsScraped} posts deeply analyzed.</p>}
-            </>
-          )}
+            <Button type="button" onClick={handleScrape} disabled={isScraping || scrapeCooldown > 0 || !linkedinUrlInput.trim()} variant="primary" size="sm">
+              {isScraping ? 'Scraping...' : !linkedinUrlInput.trim() ? 'Enter username' : 'Scrape & Auto-fill'}
+            </Button>
+          </div>
+          <p style={{ fontSize: 10, color: txt2, marginTop: '0.5rem', fontStyle: 'italic' }}>
+            Enter the exact LinkedIn username or profile URL. After scraping, the profile data is auto-filled as before.
+          </p>
+          {postsScraped > 0 && <p style={{ fontSize: 11, color: txt2, marginTop: '0.75rem' }}>{postsScraped} posts deeply analyzed.</p>}
         </div>
       </div>
 
@@ -874,7 +715,7 @@ export default function ProfileEdit({ user, onUpdate }) {
     </form>
 
     {/* Floating chat trigger */}
-    {!showChatbot && linkedinAuthed && (
+    {!showChatbot && (
       <button onClick={() => { if (!chatMessages.length) setChatMessages([{ role: 'model', text: "Hi! I'm your founder profiling assistant. Tell me about your startup ambitions and I'll build your co-founder matching profile." }]); setShowChatbot(true); }}
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 7777,

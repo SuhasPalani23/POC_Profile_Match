@@ -18,7 +18,7 @@ export const getCurrentUser = async () => {
     return response.data.user;
   } catch (error) {
     // Only remove token on auth errors (401/403), NOT on network/transient errors.
-    // This prevents logout during page reloads (e.g. LinkedIn OAuth redirect).
+    // This prevents logout during page reloads or transient network errors.
     const status = error?.response?.status;
     if (status === 401 || status === 403) {
       removeToken();

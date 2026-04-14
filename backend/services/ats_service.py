@@ -3,12 +3,12 @@ import re
 import PyPDF2
 import docx
 from typing import Dict, List, Optional
-from services.llama_service import LlamaService
+from services.llm_service import LLMService
 
 
 class ATSService:
     def __init__(self):
-        self.llama_service = LlamaService()
+        self.llm_service = LLMService()
 
     # ------------------------------------------------------------------
     # File parsing
@@ -229,7 +229,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            result = self.llama_service.generate_json(prompt)
+            result = self.llm_service.generate_json(prompt)
             return result or {}
         except Exception as e:
             print(f"[ATSService] AI resume analysis error: {e}")
@@ -293,7 +293,7 @@ Score guidance:
 - Below 55: Weak match — significant gaps in skills or founder fit
 """
         try:
-            result = self.llama_service.generate_json(prompt)
+            result = self.llm_service.generate_json(prompt)
             return result or {
                 "overall_score": 0,
                 "technical_fit": 0,
@@ -348,7 +348,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            result = self.llama_service.generate_json(prompt)
+            result = self.llm_service.generate_json(prompt)
             return result.get("optimization_tips", []) if result else []
         except Exception as e:
             print(f"[ATSService] Optimization tips error: {e}")
@@ -375,7 +375,7 @@ Respond ONLY with valid JSON — no markdown fences:
 }}
 """
         try:
-            result = self.llama_service.generate_json(prompt)
+            result = self.llm_service.generate_json(prompt)
             return result.get("skills", []) if result else []
         except Exception as e:
             print(f"[ATSService] Skill extraction error: {e}")

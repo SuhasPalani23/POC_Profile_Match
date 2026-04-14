@@ -1,4 +1,4 @@
-"""LLM service — now powered by OpenAI (replaces Groq/Llama)."""
+"""LLM service — powered by OpenAI."""
 
 from openai import OpenAI
 from config import Config
@@ -6,8 +6,8 @@ import json
 import re
 
 
-class LlamaService:
-    """Retained class name for backwards compatibility with matching_service and ats_service."""
+class LLMService:
+    """Generic LLM wrapper, using OpenAI GPT instances."""
 
     def __init__(self):
         self.client = OpenAI(api_key=Config.OPENAI_API_KEY)

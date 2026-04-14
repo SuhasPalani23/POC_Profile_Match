@@ -94,12 +94,6 @@ export const profileAPI = {
   },
 };
 
-export const linkedinAuthAPI = {
-  getConsentUrl: () => api.post("/auth/linkedin/consent-url"),
-  getStatus: () => api.get("/auth/linkedin/status"),
-  disconnect: () => api.post("/auth/linkedin/disconnect"),
-};
-
 export const collaborationAPI = {
   sendRequest: (data) => api.post("/collaboration/send-request", data),
   getMyRequests: () => api.get("/collaboration/my-requests"),

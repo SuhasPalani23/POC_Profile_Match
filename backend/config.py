@@ -14,8 +14,6 @@ class Config:
     IS_PRODUCTION = FLASK_ENV == 'production'
     PORT = int(os.getenv('PORT', '5001'))
     HOST = os.getenv('HOST', '0.0.0.0')
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-    GROQ_API_KEY = os.getenv('GROQ_API_KEY')
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     FRONTEND_URLS = [url.strip() for url in os.getenv('FRONTEND_URLS', FRONTEND_URL).split(',') if url.strip()]
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', str(10 * 1024 * 1024)))
@@ -34,7 +32,3 @@ class Config:
 
     # OpenAI
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    # LinkedIn OAuth
-    LINKEDIN_CLIENT_ID = os.getenv('LINKEDIN_CLIENT_ID')
-    LINKEDIN_CLIENT_SECRET = os.getenv('LINKEDIN_CLIENT_SECRET')
-    LINKEDIN_REDIRECT_URI = os.getenv('LINKEDIN_REDIRECT_URI', 'http://localhost:5001/api/auth/linkedin/callback')

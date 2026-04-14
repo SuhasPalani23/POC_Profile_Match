@@ -3,7 +3,7 @@ from datetime import datetime
 from db import get_collection
 from models.user import User
 from services.candidate_profile_builder import CandidateProfileBuilder
-from services.llama_service import LlamaService
+from services.llm_service import LLMService
 from services.matching_taxonomy import dedupe_terms, keyword_weight, normalize_term
 from services.project_requirement_builder import ProjectRequirementBuilder
 from services.vector_service import VectorService
@@ -16,7 +16,7 @@ def feedback_collection():
 class MatchingService:
     def __init__(self):
         self.vector_service = VectorService()
-        self.llama_service = LlamaService()
+        self.llm_service = LLMService()
         self.candidate_builder = CandidateProfileBuilder()
         self.project_builder = ProjectRequirementBuilder()
         self.default_weights = {
@@ -438,7 +438,7 @@ Return ONLY valid JSON:
   "concerns": ["specific concern"]
 }}
 """
-        result = self.llama_service.generate_json(prompt)
+        result = self.llm_service.generate_json(prompt)
         if result:
             return (
                 result.get("reasoning", ""),
