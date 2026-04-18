@@ -20,14 +20,14 @@ class MatchingService:
         self.candidate_builder = CandidateProfileBuilder()
         self.project_builder = ProjectRequirementBuilder()
         self.default_weights = {
-            "hard_match_score": 0.34,
-            "rare_keyword_score": 0.18,
-            "critical_match_score": 0.12,
-            "domain_score": 0.12,
+            "hard_match_score": 0.30,
+            "rare_keyword_score": 0.20,
+            "critical_match_score": 0.20,
+            "domain_score": 0.10,
             "role_score": 0.08,
-            "experience_score": 0.08,
-            "founder_fit_score": 0.08,
-            "confidence_score": 0.08,
+            "experience_score": 0.05,
+            "founder_fit_score": 0.05,
+            "confidence_score": 0.02,
         }
     def store_feedback(self, project_id: str, founder_id: str, candidate_id: str, feedback: str):
         doc = {
@@ -177,44 +177,39 @@ class MatchingService:
     def _weighted_score(self, subscores: dict) -> float:
         return sum(self.default_weights.get(key, 0) * subscores.get(key, 0) for key in self.default_weights)
 
-    def _calibrate_score_band(self, scored_matches: list) -> list:
+    def _anchor_scores(self, scored_matches: list) -> list:
+        """
+        Anchor the #1 candidate at 95%+ and scale everyone else
+        proportionally, preserving the real gaps between candidates.
+        """
         if not scored_matches:
             return scored_matches
 
         weighted_values = [item["_deterministic_match"]["weighted"] for item in scored_matches]
-        max_weight = max(weighted_values)
-        min_weight = min(weighted_values)
-        spread = max(0.001, max_weight - min_weight)
+        best_raw = max(weighted_values)
 
-        for index, item in enumerate(scored_matches):
-            precomputed = item["_deterministic_match"]
-            subscores = precomputed["subscores"]
-            weighted = precomputed["weighted"]
-            normalized_rank_score = (weighted - min_weight) / spread if spread > 0 else 1.0
+        if best_raw <= 0:
+            for item in scored_matches:
+                item["_deterministic_match"]["final_percentage"] = 5
+            return scored_matches
 
-            anchor_floor = 60
-            anchor_ceiling = 98
-            calibrated = anchor_floor + (normalized_rank_score * (anchor_ceiling - anchor_floor))
+        # Anchor: map the best raw score to 96%.
+        # Everyone else = (their_raw / best_raw) * 96, preserving gaps.
+        anchor = 96.0
+        for item in scored_matches:
+            raw = item["_deterministic_match"]["weighted"]
+            ratio = raw / best_raw
+            display = ratio * anchor
 
-            critical_bonus = 0.0
-            if subscores["critical_match_score"] >= 0.95:
-                critical_bonus += 4.0
-            elif subscores["critical_match_score"] >= 0.80:
-                critical_bonus += 2.0
-
-            if subscores["hard_match_score"] < 0.60:
-                calibrated -= 8.0
-            if subscores["critical_match_score"] < 0.50:
-                calibrated -= 6.0
-            if subscores["rare_keyword_score"] < 0.40:
-                calibrated -= 4.0
-
-            if index == 0 and subscores["hard_match_score"] >= 0.80 and subscores["critical_match_score"] >= 0.75:
-                calibrated = max(calibrated, 96.0)
+            # Apply small bonuses/penalties based on skill match quality
+            subscores = item["_deterministic_match"]["subscores"]
+            if subscores["critical_match_score"] >= 0.90:
+                display += 2.0
+            if subscores["hard_match_score"] < 0.40:
+                display -= 5.0
 
             item["_deterministic_match"]["final_percentage"] = max(
-                60,
-                min(99, int(round(calibrated + critical_bonus)))
+                5, min(99, int(round(display)))
             )
 
         scored_matches.sort(
@@ -274,19 +269,9 @@ class MatchingService:
             "retrieval_score": self._normalize_vector_score(candidate_profile["vector_similarity"]),
         }
         weighted = self._weighted_score(subscores)
+        # final_percentage is a placeholder here; the real display score
+        # is computed by _anchor_scores after all candidates are ranked.
         final_percentage = int(round(weighted * 100))
-
-        if hard_match_score >= 0.90 and critical_match_score >= 0.85:
-            final_percentage = max(final_percentage, 97)
-        elif hard_match_score >= 0.80 and critical_match_score >= 0.70:
-            final_percentage = max(final_percentage, 93)
-        elif critical_match_score < 0.45:
-            final_percentage = min(final_percentage, 74)
-
-        if ai_depth_score < 0.35:
-            final_percentage = min(final_percentage, 68)
-        elif ai_depth_score < 0.50:
-            final_percentage = min(final_percentage, 78)
 
         return {
             "candidate_profile": candidate_profile,
@@ -336,7 +321,7 @@ class MatchingService:
             reverse=True,
         )
         candidates = scored_candidates[: max(10, top_k * 2)]
-        candidates = self._calibrate_score_band(candidates)
+        candidates = self._anchor_scores(candidates)
 
         matches = []
         seen_user_ids = set()

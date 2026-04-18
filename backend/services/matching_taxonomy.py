@@ -31,28 +31,10 @@ ALIASES = {
 
 
 KEYWORD_WEIGHTS = {
-    "rag": 2.0,
-    "vector databases": 1.9,
-    "pinecone": 1.9,
-    "chromadb": 1.8,
-    "llms": 1.8,
-    "openai": 1.5,
-    "fastapi": 1.45,
-    "react": 1.35,
-    "node.js": 1.25,
-    "mongodb": 1.25,
-    "nlp": 1.2,
-    "generative ai": 1.2,
-    "machine learning": 1.15,
-    "deep learning": 1.1,
-    "data engineering": 1.05,
-    "cloud computing": 1.0,
-    "aws": 1.0,
-    "python": 1.0,
-    "sql": 0.95,
-    "api development": 0.9,
-    "ui/ux": 0.8,
-    "business strategy": 0.75,
+    # All skills weighted equally — the founder decides what matters by listing
+    # it as a requirement; the system should not second-guess that with
+    # arbitrary multipliers. Rarity is already captured by the separate
+    # rare_keyword_score subscore.
 }
 
 
@@ -212,7 +194,7 @@ def parse_years_of_experience(*values) -> int:
 
 
 def keyword_weight(term: str) -> float:
-    return KEYWORD_WEIGHTS.get(normalize_term(term), 0.75)
+    return 1.0
 
 
 def is_noisy_skill(term: str) -> bool:

@@ -23,7 +23,14 @@ from utils.validation import validate_required_fields
 from services.background_tasks import enqueue
 from openai import OpenAI
 from config import Config
-from services.openai_service import analyze_posts_deeply, founder_chatbot_respond, normalize_profile_data
+from services.openai_service import (
+    analyze_posts_deeply,
+    employee_chatbot_respond,
+    normalize_profile_data,
+    enrich_profile_from_chat,
+    STANDARD_PROFILE_FIELDS,
+)
+from services.confidence_engine import build_interview_context
 
 openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
 
@@ -95,7 +102,8 @@ PROFILE_ALLOWED_FIELDS = [
     "publications", "extraFields", "tools", "coreDomains", "interests",
     "industryInclination", "skillStrength", "careerGoals", "preferredRole",
     "preferredIndustry", "strengths", "weaknesses", "workStyle", "openToWork", "hobbies",
-    "extraFields", "dynamicFieldLabels", "chatbotFieldKeys", "aboutMe",
+    "extraFields", "dynamicFieldLabels", "chatbotFieldKeys", "linkedinFieldKeys", "aboutMe",
+    "postInsights", "chatHistory",
 ]
 
 PROFILE_RESET_DEFAULTS = {
@@ -281,7 +289,6 @@ def update_profile(current_user):
     updated_user.pop("password", None)
 
     _start_vector_upsert(current_user["_id"])
-    Project.clear_all_cached_matches()
 
     ws_service.emit_profile_update(current_user["_id"], {
         "message": "Profile updated successfully",
@@ -1288,19 +1295,88 @@ SCRAPED POSTS DATA:
     for field in ["name", "email", "firstName", "lastName"]:
         if identity_overrides.get(field):
             replacement_fields[field] = identity_overrides[field]
+
+    # About Me is reserved for the final AI-generated summary produced at
+    # the end of the chatbot interview. Keep the raw LinkedIn about text in
+    # a separate field so the enrichment call can still read it, but do NOT
+    # populate `about` / `aboutMe` / `bio` from LinkedIn here.
+    raw_linkedin_about = (extracted.get("about") or extracted.get("aboutMe") or "").strip()
+    replacement_fields.pop("about", None)
+    replacement_fields.pop("aboutMe", None)
+    replacement_fields.pop("bio", None)
+
     replacement_fields = _normalize_profile_payload(replacement_fields)
+    # _normalize_profile_payload can re-derive bio from about; strip again.
+    replacement_fields.pop("about", None)
+    replacement_fields.pop("aboutMe", None)
+    replacement_fields.pop("bio", None)
+
     replacement_fields["scrapedAt"] = datetime.utcnow()
     replacement_fields["extraFields"] = extra_fields
     replacement_fields["dynamicFieldLabels"] = dynamic_field_labels
+    # Track which extraField keys originated from LinkedIn so the frontend
+    # can distinguish them from chatbot-extracted keys.
+    replacement_fields["linkedinFieldKeys"] = list(extra_fields.keys())
+    if deep_post_insights:
+        replacement_fields["postInsights"] = deep_post_insights
+    if raw_linkedin_about:
+        replacement_fields["linkedin_about_raw"] = raw_linkedin_about
 
-    # ── DO NOT save to DB or index here ──
-    # Scraped data is returned to the frontend only.
-    # Nothing persists until the user explicitly clicks "Save Profile".
-    # This ensures privacy — scraped data is client-side only until saved.
+    # ── Normalize via LLM, then persist immediately ──
+    # The previous "wait for Save button" behavior stranded scraped data in
+    # React state, so a refresh wiped it. Now the scrape result is normalized
+    # into a canonical profile and saved before we return.
+    try:
+        normalized = normalize_profile_data(
+            linkedin_data={
+                "about": extracted.get("about"),
+                "aboutMe": extracted.get("aboutMe"),
+                "experience": extracted.get("experience"),
+                "headline": extracted.get("headline"),
+                "skills": extracted.get("skills"),
+                "tools": extracted.get("tools"),
+                "coreDomains": extracted.get("coreDomains"),
+                "interests": extracted.get("interests"),
+                "professional_title": extracted.get("professional_title"),
+                "currentPosition": extracted.get("currentPosition"),
+                "currentCompany": extracted.get("currentCompany"),
+                "experience_years": extracted.get("experience_years"),
+                "totalYearsExperience": extracted.get("totalYearsExperience"),
+            },
+            resume_data={
+                "bio": current_user.get("bio"),
+                "skills": current_user.get("skills"),
+                "tools": current_user.get("tools"),
+                "resume_text": current_user.get("resume_text"),
+                "experience_years": current_user.get("experience_years"),
+            },
+            questionnaire_data=extra_fields,
+        )
+        if normalized:
+            replacement_fields["normalized_profile"] = normalized
+    except Exception as e:
+        print(f"[scrape_linkedin] Normalization failed (non-fatal): {e}")
 
+    persisted = False
+    try:
+        clean_payload = {k: v for k, v in replacement_fields.items() if v not in [None, "", [], {}]}
+        User.update_profile(current_user["_id"], clean_payload)
+        _start_vector_upsert(current_user["_id"])
+        persisted = True
+    except Exception as e:
+        print(f"[scrape_linkedin] Persist failed (non-fatal): {e}")
+
+    # About Me is reserved for the post-chat AI summary — strip it from the
+    # response so the form doesn't fill the textarea with LinkedIn's bio.
+    client_profile_data = {
+        k: v for k, v in extracted.items()
+        if k not in ("about", "aboutMe", "bio")
+    }
+
+    suffix = "" if persisted else " (warning: could not persist to DB)"
     return api_success(
         {
-            "profileData": extracted,
+            "profileData": client_profile_data,
             "missingFields": missing_fields,
             "postsScraped": len(posts_items),
             "aiEnrichmentUsed": response is not None and ai_error_code is None,
@@ -1310,10 +1386,12 @@ SCRAPED POSTS DATA:
             "deepPostInsights": deep_post_insights,
             "extraFields": extra_fields,
             "dynamicFieldLabels": dynamic_field_labels,
+            "linkedinFieldKeys": list(extra_fields.keys()),
+            "persisted": persisted,
         },
-        "Profile scraped successfully — review and click Save to persist"
-        if ai_error_code is None
-        else "Profile scraped (AI enrichment unavailable) — review and click Save to persist",
+        ("Profile scraped, normalized, and saved. About Me will be written when the chat ends."
+         if ai_error_code is None
+         else "Profile scraped (AI enrichment unavailable) and saved.") + suffix,
     )
 
 
@@ -1488,53 +1566,265 @@ JSON schema:
 # POST /profile/founder-chat  (OpenAI-powered founder profiling chatbot)
 # ------------------------------------------------------------------
 
+# snake_case → camelCase aliases so a stray snake_case key from the LLM doesn't
+# get filed as a custom field when it actually matches a standard one.
+_STANDARD_FIELD_SET = set(STANDARD_PROFILE_FIELDS)
+_SNAKE_TO_CAMEL_ALIASES = {
+    "first_name": "firstName",
+    "last_name": "lastName",
+    "current_position": "currentPosition",
+    "current_company": "currentCompany",
+    "linkedin_url": "linkedinUrl",
+    "total_years_experience": "totalYearsExperience",
+    "experience_years": "totalYearsExperience",
+    "core_domains": "coreDomains",
+    "industry_inclination": "industryInclination",
+    "skill_strength": "skillStrength",
+    "career_goals": "careerGoals",
+    "preferred_role": "preferredRole",
+    "preferred_industry": "preferredIndustry",
+    "work_style": "workStyle",
+    "open_to_work": "openToWork",
+    "about_me": "aboutMe",
+    "project_highlights": "projectHighlights",
+    "domain_depth": "domainDepth",
+    "collaboration_style": "collaborationStyle",
+    "learning_goals": "learningGoals",
+}
+
+
+def _normalize_extracted_keys(fields, labels):
+    out_fields, out_labels = {}, {}
+    for key, value in (fields or {}).items():
+        canonical = _SNAKE_TO_CAMEL_ALIASES.get(key, key)
+        out_fields[canonical] = value
+        label = (labels or {}).get(key) or (labels or {}).get(canonical)
+        if label:
+            out_labels[canonical] = label
+    for key, label in (labels or {}).items():
+        if key in out_fields and key not in out_labels:
+            out_labels[key] = label
+    return out_fields, out_labels
+
+
+def _safe_round_metrics(metrics):
+    """Round numeric values; preserve nested dicts and other types."""
+    out = {}
+    for k, v in (metrics or {}).items():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[k] = round(v, 3)
+        elif isinstance(v, dict):
+            out[k] = {
+                sk: round(sv, 3) if isinstance(sv, (int, float)) and not isinstance(sv, bool) else sv
+                for sk, sv in v.items()
+            }
+        else:
+            out[k] = v
+    return out
+
+
 @profile_bp.route("/founder-chat", methods=["POST"])
 @token_required
 def founder_chat(current_user):
-    """LLM-driven chatbot that collects founder/cofounder profiling data dynamically."""
+    """
+    Per-turn LLM chatbot. Persists everything to Mongo on every request:
+      - the chat thread itself (so refresh restores it)
+      - extracted fields (top-level standard fields and custom snake_case ones)
+      - confidence and dimension scores
+      - a generated About Me when the interview wraps up
+    """
     data = request.json or {}
-    chat_history = data.get('messages', [])
-    profile_ctx = data.get('profileContext', {}) or {}
-    discovered_fields = data.get('discoveredFields', {}) or {}
-
-    # Load existing extraFields from user
-    existing_extra = current_user.get('extraFields', {}) or {}
-    existing_labels = current_user.get('dynamicFieldLabels', {}) or {}
+    incoming_user_text = (data.get("userMessage") or "").strip()
+    is_resume_mode = bool(data.get("isResumeMode", False))
+    bootstrap = bool(data.get("bootstrap", False))
 
     if not Config.OPENAI_API_KEY:
         return api_error("CONFIG_ERROR", "OpenAI API key not configured", 500)
 
-    result = founder_chatbot_respond(
+    # ── Build current state from the user doc ─────────────────────────────────
+    profile_ctx = {k: v for k, v in current_user.items() if k != "password"}
+    existing_extra = current_user.get("extraFields", {}) or {}
+    existing_labels = current_user.get("dynamicFieldLabels", {}) or {}
+    existing_chatbot_keys = set(current_user.get("chatbotFieldKeys", []) or [])
+    discovered_fields = current_user.get("postInsights", {}) or {}
+    chat_history = list(current_user.get("chatHistory", []) or [])
+
+    # Append the new user message to the running thread (if provided).
+    if incoming_user_text:
+        chat_history.append({
+            "role": "user",
+            "text": incoming_user_text,
+            "ts": datetime.utcnow().isoformat(),
+        })
+
+    # ── Confidence + next-topic snapshot ──────────────────────────────────────
+    merged_profile = {**profile_ctx, **existing_extra}
+    turn_count = len(chat_history)
+    ctx = build_interview_context(
+        profile_data=merged_profile,
+        extra_fields=existing_extra,
+        discovered_fields=discovered_fields,
+        turn_count=turn_count,
+        chat_history=chat_history,
+    )
+
+    print(
+        f"[founder_chat] confidence={round(ctx['confidence_score']*100)}% "
+        f"turns={turn_count} focus={ctx['focus_signal']} "
+        f"resume_mode={is_resume_mode} bootstrap={bootstrap}"
+    )
+
+    # ── First LLM pass: message + extraction ──────────────────────────────────
+    result = employee_chatbot_respond(
         chat_history=chat_history,
         profile_context=profile_ctx,
         discovered_fields=discovered_fields,
         extra_fields=existing_extra,
+        is_resume_mode=is_resume_mode,
+        confidence_score=ctx["confidence_score"],
+        weakest_dimension=ctx["focus_signal"],
+        progress_summary=ctx["progress_summary"],
+        should_stop=ctx["should_stop"],
+        question_focus=ctx["next_focus"],
     )
 
-    # Merge extracted fields — return to client only, DO NOT save to DB here.
-    # Everything persists only when the user clicks "Save Profile".
-    new_fields = result.get("extractedFields", {})
-    new_labels = result.get("fieldLabels", {})
-    if new_fields:
-        merged_extra = {**existing_extra, **new_fields}
-        merged_labels = {**existing_labels, **new_labels}
-    else:
-        merged_extra = existing_extra
-        merged_labels = existing_labels
+    raw_fields = result.get("extractedFields") or {}
+    raw_labels = result.get("fieldLabels") or {}
+    new_fields, new_labels = _normalize_extracted_keys(raw_fields, raw_labels)
+    merged_extra = {**existing_extra, **new_fields} if new_fields else existing_extra
+    merged_labels = {**existing_labels, **new_labels} if new_labels else existing_labels
 
-    print(f"[founder_chat] OpenAI raw result keys: {list(result.keys())}")
-    print(f"[founder_chat] extractedFields={new_fields}")
-    print(f"[founder_chat] fieldLabels={new_labels}")
-    print(f"[founder_chat] allExtraFields keys={list(merged_extra.keys())}")
+    # ── Recalculate confidence after extraction ───────────────────────────────
+    if new_fields and not is_resume_mode:
+        post_ctx = build_interview_context(
+            profile_data={**profile_ctx, **merged_extra},
+            extra_fields=merged_extra,
+            discovered_fields=discovered_fields,
+            turn_count=turn_count + 1,
+            chat_history=chat_history,
+        )
+        new_confidence = post_ctx["confidence_score"]
+        new_dim_scores = post_ctx["metrics"]
+        next_focus_dim = post_ctx["focus_signal"]
+        conversation_complete = post_ctx["should_stop"]
+    else:
+        new_confidence = ctx["confidence_score"]
+        new_dim_scores = ctx["metrics"]
+        next_focus_dim = ctx["focus_signal"]
+        conversation_complete = ctx["should_stop"] if not is_resume_mode else False
+
+    # Stop-race fix: if pre-call confidence was below threshold (LLM ran in
+    # ACTIVE mode and asked a question) but post-call recalc crosses 85%, run
+    # a second LLM call in INTERVIEW COMPLETE mode so we don't end the chat
+    # with a dangling question.
+    if not is_resume_mode and conversation_complete and not ctx["should_stop"]:
+        try:
+            wrap = employee_chatbot_respond(
+                chat_history=chat_history,
+                profile_context=profile_ctx,
+                discovered_fields=discovered_fields,
+                extra_fields=merged_extra,
+                is_resume_mode=False,
+                confidence_score=new_confidence,
+                weakest_dimension=next_focus_dim,
+                progress_summary=None,
+                should_stop=True,
+                question_focus={},
+            )
+            result["message"] = wrap.get("message") or result.get("message", "")
+            result["nextQuestion"] = ""
+        except Exception as e:
+            print(f"[founder_chat] wrap-up re-call failed (non-fatal): {e}")
+
+    # Append assistant message to the running thread.
+    assistant_text = result.get("message", "").strip()
+    if assistant_text:
+        chat_history.append({
+            "role": "model",
+            "text": assistant_text,
+            "ts": datetime.utcnow().isoformat(),
+        })
+
+    # ── Post-chat enrichment: rewrite About Me + fill missing Basic Info ─────
+    # Runs once when conversation completes (not in resume mode). Uses ALL
+    # collected data — LinkedIn + chat answers + post signals + resume — and
+    # asks the LLM to blend them into a refreshed About Me and to fill any
+    # Basic Info fields that are still empty.
+    enriched_fields = {}
+    if conversation_complete and not is_resume_mode:
+        try:
+            enrichment_profile = {**profile_ctx, **merged_extra}
+            # Surface the raw LinkedIn about text (stored separately so the
+            # visible About Me stays empty until enrichment runs) so the
+            # enrichment LLM can weave it into the final summary.
+            raw_about = current_user.get("linkedin_about_raw")
+            if raw_about:
+                enrichment_profile["linkedin_about_raw"] = raw_about
+            enriched_fields = enrich_profile_from_chat(
+                profile_data=enrichment_profile,
+                extra_fields=merged_extra,
+                discovered_fields=discovered_fields,
+                resume_text=current_user.get("resume_text") or "",
+            ) or {}
+            if enriched_fields:
+                print(f"[founder_chat] Profile enrichment produced: {list(enriched_fields.keys())}")
+        except Exception as e:
+            print(f"[founder_chat] Profile enrichment failed (non-fatal): {e}")
+
+    # ── Persist EVERYTHING to Mongo per turn ──────────────────────────────────
+    updated_chatbot_keys = set(existing_chatbot_keys)
+    for key in new_fields.keys():
+        if key not in _STANDARD_FIELD_SET:
+            updated_chatbot_keys.add(key)
+
+    persist_payload = {
+        "profileConfidenceScore": round(new_confidence * 100, 1),
+        "dimensionScores": _safe_round_metrics(new_dim_scores),
+        "chatHistory": chat_history,
+    }
+    if new_fields:
+        persist_payload["extraFields"] = merged_extra
+        persist_payload["dynamicFieldLabels"] = merged_labels
+        persist_payload["chatbotFieldKeys"] = list(updated_chatbot_keys)
+        for key, value in new_fields.items():
+            if key in _STANDARD_FIELD_SET and value not in [None, "", [], {}]:
+                persist_payload[key] = value
+    # Enriched fields win over per-turn extracted fields for the same keys.
+    for key, value in enriched_fields.items():
+        persist_payload[key] = value
+
+    try:
+        User.update_profile(current_user["_id"], persist_payload)
+    except Exception as e:
+        print(f"[founder_chat] persist error (non-fatal): {e}")
+
+    # Re-index the user's vector in Pinecone so matching reflects the latest
+    # chatbot answers, enriched About Me, and extracted fields.
+    _start_vector_upsert(current_user["_id"])
+
+    print(
+        f"[founder_chat] post-turn confidence={round(new_confidence*100)}% "
+        f"done={conversation_complete} extracted={list(new_fields.keys())}"
+    )
 
     return api_success({
-        "reply": result.get("message", ""),
+        "reply": assistant_text,
         "extractedFields": new_fields,
         "fieldLabels": new_labels,
         "allExtraFields": merged_extra,
         "allFieldLabels": merged_labels,
         "nextQuestion": result.get("nextQuestion", ""),
-        "conversationComplete": result.get("conversationComplete", False),
+        "conversationComplete": conversation_complete if not is_resume_mode else False,
+        "confidenceScore": round(new_confidence, 3),
+        "dimensionScores": _safe_round_metrics(new_dim_scores),
+        "nextFocusDimension": next_focus_dim,
+        "chatHistory": chat_history,
+        "chatbotFieldKeys": list(updated_chatbot_keys),
+        "linkedinFieldKeys": current_user.get("linkedinFieldKeys", []),
+        # All enriched fields go back to the client so the UI can refresh About
+        # Me + Basic Info immediately without waiting for a page reload.
+        "enrichedFields": enriched_fields,
+        "aboutMe": enriched_fields.get("aboutMe"),
     })
 
 
@@ -1763,7 +2053,6 @@ def upload_resume(current_user):
 
     # Pinecone upsert in background (vector now includes full resume text)
     _start_vector_upsert(current_user["_id"])
-    Project.clear_all_cached_matches()
 
     updated_user = User.find_by_id(current_user["_id"])
     updated_user.pop("password", None)
@@ -1843,7 +2132,6 @@ def delete_resume(current_user):
     })
 
     _start_vector_upsert(current_user["_id"])
-    Project.clear_all_cached_matches()
 
     return api_success({
         "message": "Resume deleted successfully",
