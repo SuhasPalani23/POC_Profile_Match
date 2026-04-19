@@ -1,210 +1,115 @@
-# Frontend Redesign Inventory
+# Founding Mindset Portal – Frontend Phase 0 Inventory
 
-This document serves as the discovery and inventory of all existing frontend routes, pages, sections, form fields, and states for the "Founding Mindset Portal". Per the redesign requirements, every item listed here must be preserved exactly in functionality and presence.
+This document acts as a strict contract for the visual redesign of the application. It lists every existing component, route, state, and data field that **must be retained** in the new cinematic aesthetic. Modifying backend structure or removing fields is strictly prohibited.
 
-## 1. Login (`/login`)
-- **Route Path:** `/login`
-- **Page Title / Heading:** Founder Employee Matching Platform / Find Exceptional Talent / Secure Access / Sign In
-- **Sections:**
-  - Hero / Marketing section (left split)
-  - Authentication Form (right split)
-- **Form Fields:**
-  - Email (`email`, email, required)
-  - Password (`password`, password, required)
-- **Buttons / Actions:**
-  - Sign In (submit button)
-  - Show/Hide Password toggle icon
-  - "Create one" link (to `/signup`)
-- **Data Rendered:** None (input only).
-- **State Variants:** Loading ('Signing in...'), Error (error banner with message), Caps Lock On warning.
-- **Navigation:** To `/dashboard` on success, to `/signup`.
+## 1. Authentication (`/src/components/Auth`)
+### `Login.jsx`
+- **Fields**: Email, Password.
+- **Actions**: "Sign In" button, "Don't have an account? Sign Up" link.
+- **States**: Error banners, Loading state (submitting).
 
-## 2. Signup (`/signup`)
-- **Route Path:** `/signup`
-- **Page Title / Heading:** Onboarding / Join the Founder Network
-- **Sections:** Form container layout.
-- **Form Fields:**
-  - Full Name (`name`, text, required)
-  - Email (`email`, email, required)
-  - Password (`password`, password, required, min 6 chars)
-  - Confirm Password (`confirmPassword`, password, required, min 6 chars)
-- **Buttons / Actions:**
-  - Create Account (submit button)
-  - Show/Hide Password toggle icon
-  - Show/Hide Confirm Password toggle icon
-  - "Sign in" link (to `/login`)
-- **Data Rendered:** None.
-- **State Variants:** Loading ('Creating Account...'), Error (banner), Password Mismatch, Caps Lock On warnings.
-- **Navigation:** To `/dashboard` on success, to `/login`.
+### `Signup.jsx`
+- **Fields**: 
+  - Role selection (Founder, Candidate)
+  - Full Name, Email, Password, Confirm Password
+  - Contextual step fields: Idea Description (Founder), Top Skills (Candidate, comma-separated)
+- **Actions**: "Create Account" button, "Already have an account? Log In" link.
+- **States**: Field errors, General errors, Loading state.
 
-## 3. Founder Dashboard (`/dashboard` for Founders)
-- **Route Path:** `/dashboard` (role='founder')
-- **Page Title / Heading:** Founder command center / Founder Dashboard
-- **Sections:**
-  - Header / Hero row
-  - Metrics Grid
-  - Projects List
-  - Team View (Sub-component rendered when switching view state)
-- **Form Fields:** None.
-- **Buttons / Actions:**
-  - New Project CTA (navigates to `/submit-idea`)
-  - View Matches (per live project)
-  - View Team (per live project)
-  - Team Chat (per live project)
-  - Read more / Show less toggle (for long descriptions)
-- **Data Rendered:**
-  - Projects Metric Tile
-  - Matches Metric Tile
-  - Requests Metric Tile
-  - Project entries (Title, LIVE / PENDING badge, Description)
-- **State Variants:** Loading ('Calibrating...'), Empty Projects ('No Projects Yet', 'Submit First Project'), Under Review (disabled state).
-- **Navigation:** Mentions standard Navbar (`/requests`, `/profile/edit`, etc.).
+## 2. Dashboard (`/src/components/Dashboard`)
+### `FounderDashboard.jsx`
+- **Metrics**: Projects count, Matches count, Requests count (Pending invites).
+- **Actions**: "New Project" (Submit Idea), "Show less / Read more" (Description toggler).
+- **Project List**: 
+  - Status badge (LIVE or PENDING REVIEW)
+  - Title, Description snippet
+  - Actions: "View Matches", "View Team", "Team Chat".
+- **States**: Loading loader.
 
-## 4. User Dashboard (`/dashboard` for Candidates)
-- **Route Path:** `/dashboard` (role!='founder')
-- **Page Title / Heading:** Candidate workspace / Welcome {name}
-- **Sections:**
-  - Hero (Welcome message)
-  - My Teams (Active memberships)
-  - Founder Mode CTA
-  - Platform capabilities
-  - Profile Snapshot
-- **Form Fields:** None.
-- **Buttons / Actions:**
-  - Team Chat (per project)
-  - View Team (per project)
-  - Leave (per project, triggers confirm)
-  - Submit Your Idea (CTA)
-  - View Collaboration Requests (if empty teams)
-- **Data Rendered:**
-  - My Teams entries: Project title, founder name, join date, description preview
-  - Platform capabilities list (AI-Powered Matching, Instant Results, Team Formation)
-  - Profile Snapshot elements: Email, Title, Location, Experience, Bio, Skills tags, LinkedIn link
-- **State Variants:** Loading Projects, Empty Teams, Confirm leave popup.
-- **Navigation:** Integrates with Navbar.
+### `UserDashboard.jsx` (Candidate Workspace)
+- **Sections**: 
+  - Welcome Banner (with user name)
+  - "My Teams" (Active Memberships): Project title, Founder name, Joined date, Description preview.
+    - Actions: "Team Chat", "View Team", "Leave"
+  - "Founder mode" CTA: "Ready to launch your own startup brief?" -> "Submit Your Idea"
+  - Platform capabilities cards
+  - Profile Snapshot: Email, Title, Location, Experience (years), Bio, Skills (tags), LinkedIn link.
+- **States**: Loading states, Empty states (No projects joined), Toast notifications.
 
-## 5. Idea Submission (`/submit-idea`)
-- **Route Path:** `/submit-idea`
-- **Page Title / Heading:** Founder Submission / Submit Your Startup Vision
-- **Sections:**
-  - Title/Intro
-  - Form
-- **Form Fields:**
-  - Project Title (`title`, text, required)
-  - Project Description (`description`, textarea, min 500 chars)
-  - Required Skills (`required_skills`, text)
-- **Buttons / Actions:**
-  - Voice recording toggle (Stop / Voice)
-  - TTS Listen button (Play / Listen)
-  - AI Rewrite toggle + Style option chips (Professional, Shorten, Formal, Casual, Expand, Story, Technical)
-  - Cancel
-  - Submit for Review
-- **Data Rendered:** Character count hint.
-- **State Variants:** Recording active, Playing Audio active, Rewriting (loading anim), Submitting ('Reviewing your vision...'), Error banner.
-- **Navigation:** Returns to `/dashboard` on cancel, forwards to `/matches/:projectId` on success.
+## 3. Project (`/src/components/Project`)
+### `IdeaSubmission.jsx`
+- **Fields**: Project Title, Project Description (min 500 chars), Required Skills (comma-separated).
+- **Toolbar/AI**: 
+  - Voice recording ("Voice" -> "Stop")
+  - Listen (TTS)
+  - AI Rewrite with styles: Professional, Shorten, Elevator Pitch, Formal, Casual, Expand, Story, Technical.
+- **Actions**: "Cancel", "Submit for Review".
+- **States**: Voice recording states, Rewriting loading state, Submitting animation (10sec calibration).
 
-## 6. MatchList (`/matches/:projectId`)
-- **Route Path:** `/matches/:projectId`
-- **Page Title / Heading:** Match Intelligence  
-- **Sections:**
-  - Header / Project Brief
-  - Match Cards List
-- **Form Fields:** None.
-- **Buttons / Actions:**
-  - Back to Dashboard
-  - Send Request
-  - View Details / Hide Details toggle
-  - Helpful (submit feedback)
-  - Not Helpful (submit feedback)
-- **Data Rendered:**
-  - Match count (`{count} / {total} matches found`)
-  - Project Brief: Title, Description
-  - Card Metrics: Match Percentage, Match Rank (#1 match, etc.)
-  - Card Profile: Name, Professional Title, Experience Years, Skills tags, Reasoning block, Subscores grid (hard skills, domain, etc.).
-  - Expanded Details: Bio, Strengths list, Considerations list, LinkedIn link, Resume link, 'Founder - not available' label, 'Request Sent' label.
-- **State Variants:** Loading ('Scanning the talent pool...'), Error ('System Alert'), Empty ('No Matches Found'), Expansion visibility states.
-- **Navigation:** Back to Dashboard.
+## 4. Matching (`/src/components/Matching`)
+### `MatchList.jsx`
+- **Route Options**: Project brief header, Navigation to Dashboard.
+- **Match Item/Card**:
+  - Score (% with "match" rank label)
+  - Name, Title/Role, Experience Years
+  - Skills Tags (filtered by priority/noisy sets)
+  - Match Reasoning (text explanation)
+  - Subscores (radar/stats)
+  - Expanded Details: Bio, Strengths, Considerations (Concerns), LinkedIn link, Resume link (API endpoint).
+  - Actions: "View/Hide Details", Feedback ("Helpful", "Not Helpful"), "Send Request".
+- **States**: Progress counter for search, Loading scanner animation, Expanded/Collapsed cards.
 
-## 7. Profile Edit (`/profile/edit`)
-- **Route Path:** `/profile/edit`
-- **Page Title / Heading:** Edit Profile
-- **Sections:**
-  - LinkedIn Scrape (Import)
-  - Basic Info
-  - Auto-Filled from LinkedIn & AI
-  - Discovered from LinkedIn
-  - Typeform Chatbot Overlay (Floating component)
-- **Form Fields:**
-  - LinkedIn URL Input (`linkedinUrlInput`, text)
-  - Basic Info: First Name, Last Name, Professional Headline, About Me (textarea + AI rewrite), Email, LinkedIn URL
-  - Auto-Filled: About (textarea), Current Role, Company, Skills (textarea), Tools, Core Domains, Interests, Years of Experience, Work Style
-  - Discovered Fields (Dynamic Field Cards via AI analysis)
-  - File Upload for Resume (.pdf, .docx)
-  - Chat input inside Typeform chatbot
-- **Buttons / Actions:**
-  - Scrape & Auto-fill
-  - Clear URL
-  - Upload Resume, Download Resume, Delete Resume
-  - Wait/Listen/AI enhancements
-  - Save Profile
-  - Open Chatbot (FAB trigger)
-  - Chat Send
-- **Data Rendered:** Scrape stats, profile validation state (X missing), extracted skills from resume.
-- **State Variants:** Unsaved changes banner, Indexing Vector DB states, Success banner, Error banners, Chatbot Loading / Minimised, Scrape Rate Limit cooldown.
+## 5. Profile (`/src/components/Profile`)
+### `ProfileEdit.jsx`
+- **Sections/Tools**:
+  - LinkedIn Scrape: URL Input, "Scrape & Auto-fill" button, "Clear URL".
+  - Basic Info: First Name, Last Name, Professional Headline, About Me, Email, LinkedIn URL.
+  - Resume Management: Upload (PDF/DOCX), Download, Delete, extracted skills hint.
+  - Auto-Filled / Scraped Panel: About, Current Role, Company, Skills, Tools, Core Domains, Interests, Years of Experience, Work Style.
+  - Discovered Insights: Dynamic extra fields from advanced scraping.
+- **Chatbot (Typeform-style Overlay)**: 
+  - Q&A floating dialogue.
+  - Input field for answering.
+  - Minimize / Close actions.
+- **Actions**: "Save Profile".
+- **States**: Unsaved changes warning, Scraping cooldown, Loading, Uploading, Error banners.
 
-## 8. Collaboration Requests (`/requests`)
-- **Route Path:** `/requests`
-- **Page Title / Heading:** Collaboration Requests (implied)
-- **Sections:**
-  - Request list
-- **Form Fields:** None.
-- **Buttons / Actions:**
-  - Accept & Join Team
-  - Decline
-- **Data Rendered:**
-  - Project Title and Full Description
-  - Founder Name, Title, and Full Bio
-  - Personal Message block
-- **State Variants:** Loading spinner, Empty state ('No pending collaboration requests').
-- **Navigation:** Implicitly via Navbar.
+## 6. Collaboration & Chat (`/src/components/Collaboration`, `/src/components/Chat`)
+### `CollaborationRequests.jsx`
+- **List Items**: 
+  - Project Title & Full Description.
+  - Founder Info: Name, Title, Bio.
+  - Custom Message text.
+- **Actions**: "Accept & Join Team", "Decline".
 
-## 9. Team Page (`/team/:projectId`)
-- **Route Path:** `/team/:projectId`
-- **Page Title / Heading:** Team / {Project Title}
-- **Sections:**
-  - Header with Member Count
-  - Cards for Founder & Members
-- **Form Fields:** None.
-- **Buttons / Actions:**
-  - Back to Dashboard
-  - Open Team Chat
-- **Data Rendered:** 
-  - Project Title, total members
-  - Founder Card (FOUNDER badge, name, title, bio, skills, email)
-  - Member Cards (name, YOU badge if applicable, title, bio, skills, email)
-- **State Variants:** Loading ('Loading team...'), Error, Empty state ('No other team members yet').
+### `TeamPage.jsx`
+- **Information**: Project Title, Member count string.
+- **Cards**:
+  - Member details: Name, Role tags ("FOUNDER", "YOU"), Professional Title, Bio, Skills (tags), Email.
+- **Actions**: "Back to Dashboard", "Open Team Chat".
 
-## 10. Live Chat (`/chat/:projectId`)
-- **Route Path:** `/chat/:projectId`
-- **Page Title / Heading:** #{Project Title} / DM
-- **Sections:**
-  - Left Sidebar / Nav (Channels, Direct Messages, Team Members, Actions)
-  - Main Chat View
-  - Input Area
-- **Form Fields:**
-  - New Message string input
-- **Buttons / Actions:**
-  - Group Chat toggle
-  - DM channel toggle (per member)
-  - Remove member (X icon - founders only, triggers confirm)
-  - Leave Project (triggers confirm)
-  - Back to Dashboard
-  - Load older messages
-  - Send message
-- **Data Rendered:**
-  - Project info, Member counts, Unread badges.
-  - Chat Message items: Sender Name, Time, Text bubble.
-  - Optimistic indicator.
-- **State Variants:** Loading ('Loading chat...'), Confirm Leave Modal, Confirm Remove Modal, Empty Chat log, Sending.
+### `LiveChat.jsx`
+- **Views**: 
+  - Sidebar: Channel list ("# Group Chat"), Direct Messages list (per member).
+  - Team Members list: Removal action (if founder).
+  - Main Panel: Messages stream.
+- **Message Item**: Sender name, Text, Timestamp.
+- **Actions**: 
+  - DM channel selecting.
+  - Message Text Input, "Send" button.
+  - "Load older messages".
+  - "Leave Project" (with confirm).
+  - "Remove" member (with confirm mask).
+- **States**: WebSocket optimistic updates, Unread counts per thread, Loading, Confirm dialogs.
 
-*(End of Inventory)*
+## UI Components & Primitives
+- **Button.jsx**: Primary, Secondary, Outline variants; loading state; fullWidth.
+- **FormField.jsx / input styles**: Consistent bordering, focus rings, hints.
+- **Loaders**: `LoadingAnimation.jsx`, Cinematic CSS loaders (`pulse-ring`, `cinematic-loader`).
+- **Typography/Layout**: `MetricTile.jsx`, Hero text components (`word-rise`, `gradient-text`).
+- **Toast Events**: `window.dispatchEvent(new CustomEvent('app-toast'))`.
+
+## Non-Negotiable Contract
+1. Every input, button, and state presented above must visually exist and be interactively reachable in the redesign.
+2. The exact prop structures flowing into these components from context or the API are untouched.
+3. No forms or processes can be "simplified" if it risks dropping any currently collected field (e.g., keeping specific AI rewriting toolbars).
