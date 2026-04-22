@@ -1566,6 +1566,36 @@ JSON schema:
 # POST /profile/founder-chat  (OpenAI-powered founder profiling chatbot)
 # ------------------------------------------------------------------
 
+# Fields that must be stored as arrays. The chatbot extraction LLM sometimes
+# returns these as comma-separated strings (e.g. "Python, Flask, Django"),
+# which used to crash the UserDashboard on `.map()`. We coerce to an array
+# at persist time so downstream UI can rely on the shape.
+_LIST_FIELDS = {"skills", "tools", "languages", "coreDomains", "interests"}
+
+
+def _coerce_list_field(value):
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, str):
+        return [s.strip() for s in value.split(",") if s.strip()]
+    if value in (None, "", {}):
+        return []
+    return [str(value).strip()]
+
+
+def _field_filled_anywhere(field, *sources):
+    for src in sources:
+        if not src:
+            continue
+        v = src.get(field)
+        if v in (None, "", [], {}):
+            continue
+        if isinstance(v, str) and not v.strip():
+            continue
+        return True
+    return False
+
+
 # snake_case → camelCase aliases so a stray snake_case key from the LLM doesn't
 # get filed as a custom field when it actually matches a standard one.
 _STANDARD_FIELD_SET = set(STANDARD_PROFILE_FIELDS)
@@ -1607,6 +1637,55 @@ def _normalize_extracted_keys(fields, labels):
     return out_fields, out_labels
 
 
+# Substrings that strongly signal the LLM has decided to wrap up on its own,
+# even if the backend's bucket logic says there's more to cover. When this
+# happens while confidence is already past the stop threshold, treat it as a
+# real wrap-up instead of letting the UI drift out of sync with the model.
+#
+# Only strong closing phrases belong here. Bare "thanks for sharing" /
+# "thank you for sharing" were removed because they fire on perfectly
+# legitimate mid-interview acks ("Thanks for sharing your full name...") —
+# once confidence brushes 70% the bot would force-wrap on them, leaving
+# later buckets unfilled. See the 2026-04-22 ML-engineer session.
+_FAREWELL_MARKERS = (
+    "thank you so much",
+    "thanks so much",
+    "thank you for your time",
+    "thanks for your time",
+    "appreciate you taking the time",
+    "that's all i needed",
+    "that's everything",
+    "we're all set",
+    "we are all set",
+    "you're all set",
+    "you are all set",
+    "interview is complete",
+    "interview complete",
+    "wrapping up",
+    "all the information i need",
+    "all i needed",
+    "profile is ready",
+    "ready for matching",
+)
+
+
+def _looks_like_farewell(text):
+    if not text:
+        return False
+    lowered = text.lower()
+    return any(marker in lowered for marker in _FAREWELL_MARKERS)
+
+
+def _count_consecutive_empty_turns(chat_history, turns_back=6):
+    """
+    Count trailing assistant turns that produced no extraction. We infer
+    'no extraction' from the absence of any new fields between consecutive
+    assistant turns — but since we don't log that here, the caller tracks it.
+    This helper exists only to bound the window if we ever need it.
+    """
+    return 0
+
+
 def _safe_round_metrics(metrics):
     """Round numeric values; preserve nested dicts and other types."""
     out = {}
@@ -1643,11 +1722,31 @@ def founder_chat(current_user):
 
     # ── Build current state from the user doc ─────────────────────────────────
     profile_ctx = {k: v for k, v in current_user.items() if k != "password"}
+    # Back-derive firstName/lastName from the signup `name` if they weren't
+    # already stored separately. Without this the router treats them as
+    # unasked/missing and burns two turns re-asking data we already have.
+    if not profile_ctx.get("firstName") and not profile_ctx.get("lastName"):
+        parts = [p for p in str(profile_ctx.get("name") or "").strip().split() if p]
+        if parts:
+            profile_ctx["firstName"] = parts[0]
+            profile_ctx["lastName"] = " ".join(parts[1:])
     existing_extra = current_user.get("extraFields", {}) or {}
     existing_labels = current_user.get("dynamicFieldLabels", {}) or {}
     existing_chatbot_keys = set(current_user.get("chatbotFieldKeys", []) or [])
     discovered_fields = current_user.get("postInsights", {}) or {}
     chat_history = list(current_user.get("chatHistory", []) or [])
+    # How many turns in a row have produced zero new extracted fields.
+    # Persisted per-user so the stuck-detector survives page refreshes.
+    empty_streak = int(current_user.get("emptyExtractionStreak", 0) or 0)
+    # One-question-per-field guarantee: persisted set of canonical field keys
+    # the bot has already asked about. Every field the router targets is
+    # added here, so get_next_topic() will never re-ask it.
+    asked_fields = set(current_user.get("askedFields", []) or [])
+    # Field the user's *current* message is answering (set at the end of the
+    # previous turn). We use this to fall back to saving the user's raw text
+    # under that field when extraction fails — so a lousy answer still fills
+    # the slot and the bot moves on instead of looping.
+    last_asked_field = current_user.get("lastAskedField") or None
 
     # Append the new user message to the running thread (if provided).
     if incoming_user_text:
@@ -1666,13 +1765,24 @@ def founder_chat(current_user):
         discovered_fields=discovered_fields,
         turn_count=turn_count,
         chat_history=chat_history,
+        consecutive_empty_turns=empty_streak,
+        asked_fields=asked_fields,
     )
 
+    # Count user replies only — easier to reason about than total messages.
+    user_replies = sum(1 for m in chat_history if (m or {}).get("role") == "user")
+    pre_bucket_scores = (ctx.get("metrics") or {}).get("section_scores", {}) or {}
+    pre_bucket_str = ", ".join(
+        f"{k}={round(v*100)}%" for k, v in pre_bucket_scores.items()
+    )
     print(
-        f"[founder_chat] confidence={round(ctx['confidence_score']*100)}% "
-        f"turns={turn_count} focus={ctx['focus_signal']} "
+        f"[founder_chat] pre-turn: confidence={round(ctx['confidence_score']*100)}% "
+        f"user_replies={user_replies} messages={turn_count} "
+        f"focus={ctx['focus_signal']} empty_streak={empty_streak} "
         f"resume_mode={is_resume_mode} bootstrap={bootstrap}"
     )
+    if pre_bucket_str:
+        print(f"[founder_chat] pre-turn buckets: {pre_bucket_str}")
 
     # ── First LLM pass: message + extraction ──────────────────────────────────
     result = employee_chatbot_respond(
@@ -1691,8 +1801,46 @@ def founder_chat(current_user):
     raw_fields = result.get("extractedFields") or {}
     raw_labels = result.get("fieldLabels") or {}
     new_fields, new_labels = _normalize_extracted_keys(raw_fields, raw_labels)
+
+    # Fallback recorder: if the user answered the previous turn's question but
+    # the extractor couldn't pull out a clean value, save the raw user text
+    # under `last_asked_field` so the bucket slot fills and the bot moves on.
+    # This is the core of the "one question per field, no loops" contract —
+    # a lousy answer is still *an* answer; we don't re-ask to fish for better.
+    if (
+        not is_resume_mode
+        and last_asked_field
+        and incoming_user_text
+        and last_asked_field not in new_fields
+        and not _field_filled_anywhere(last_asked_field, profile_ctx, existing_extra, discovered_fields)
+    ):
+        raw_value = _coerce_list_field(incoming_user_text) if last_asked_field in _LIST_FIELDS else incoming_user_text
+        new_fields[last_asked_field] = raw_value
+        if last_asked_field not in new_labels:
+            new_labels[last_asked_field] = last_asked_field.replace("_", " ").title()
+        print(
+            f"[founder_chat] extraction missed '{last_asked_field}' — "
+            f"saving raw user text as fallback so we don't re-ask"
+        )
+
     merged_extra = {**existing_extra, **new_fields} if new_fields else existing_extra
     merged_labels = {**existing_labels, **new_labels} if new_labels else existing_labels
+
+    # ── Update the empty-extraction streak ────────────────────────────────────
+    # Only the active interview (not resume-mode) counts toward the streak.
+    if is_resume_mode:
+        new_empty_streak = empty_streak
+    elif new_fields:
+        new_empty_streak = 0
+    else:
+        new_empty_streak = empty_streak + 1
+
+    # Make sure the field we just asked is marked asked before the router
+    # runs again — otherwise the next-turn picker might return the same one
+    # for legacy sessions that don't have it stamped yet.
+    asked_fields_for_router = set(asked_fields)
+    if last_asked_field:
+        asked_fields_for_router.add(last_asked_field)
 
     # ── Recalculate confidence after extraction ───────────────────────────────
     if new_fields and not is_resume_mode:
@@ -1702,21 +1850,63 @@ def founder_chat(current_user):
             discovered_fields=discovered_fields,
             turn_count=turn_count + 1,
             chat_history=chat_history,
+            consecutive_empty_turns=new_empty_streak,
+            asked_fields=asked_fields_for_router,
         )
         new_confidence = post_ctx["confidence_score"]
         new_dim_scores = post_ctx["metrics"]
         next_focus_dim = post_ctx["focus_signal"]
         conversation_complete = post_ctx["should_stop"]
     else:
-        new_confidence = ctx["confidence_score"]
-        new_dim_scores = ctx["metrics"]
-        next_focus_dim = ctx["focus_signal"]
-        conversation_complete = ctx["should_stop"] if not is_resume_mode else False
+        # No extraction this turn — re-evaluate stop with the bumped streak
+        # so the stuck-detector can fire without waiting for a future turn.
+        if not is_resume_mode:
+            post_ctx = build_interview_context(
+                profile_data=merged_profile,
+                extra_fields=existing_extra,
+                discovered_fields=discovered_fields,
+                turn_count=turn_count + 1,
+                chat_history=chat_history,
+                consecutive_empty_turns=new_empty_streak,
+                asked_fields=asked_fields_for_router,
+            )
+            new_confidence = post_ctx["confidence_score"]
+            new_dim_scores = post_ctx["metrics"]
+            next_focus_dim = post_ctx["focus_signal"]
+            conversation_complete = post_ctx["should_stop"]
+        else:
+            post_ctx = ctx
+            new_confidence = ctx["confidence_score"]
+            new_dim_scores = ctx["metrics"]
+            next_focus_dim = ctx["focus_signal"]
+            conversation_complete = False
 
-    # Stop-race fix: if pre-call confidence was below threshold (LLM ran in
-    # ACTIVE mode and asked a question) but post-call recalc crosses 85%, run
-    # a second LLM call in INTERVIEW COMPLETE mode so we don't end the chat
-    # with a dangling question.
+    # The field the *next* bot message is going to ask about. Stamped onto the
+    # user doc so the next turn's `last_asked_field` knows what the user's
+    # reply is answering — that's the hook the extraction-miss fallback uses.
+    next_target_field = (post_ctx.get("next_focus") or {}).get("target_field")
+    # No unasked fields left anywhere → router already returned wrap_up and
+    # conversation_complete is True. Either way, we have nothing to mark.
+    if conversation_complete:
+        next_target_field = None
+
+    # Carry forward the full asked set (previous asked + this turn's target).
+    new_asked_fields = set(asked_fields_for_router)
+    if next_target_field:
+        new_asked_fields.add(next_target_field)
+
+    # No farewell-detection override here: conversation_complete is driven
+    # purely by the router (every field asked exactly once) or HARD_MAX_TURNS.
+    # If the LLM sneaks a "thanks" into an active-mode reply, the hallucination
+    # guard in openai_service handles it; we don't short-circuit the interview.
+
+    # Whenever the interview flips to complete — regardless of reason
+    # (confidence threshold, stuck-detector, or farewell detection) — and
+    # the original LLM call wasn't already in INTERVIEW COMPLETE mode, run
+    # a fresh LLM call in that mode so the user gets a naturally written,
+    # context-aware closing message instead of a dangling question or a
+    # premature hallucinated goodbye. Nothing hardcoded: every wrap-up
+    # message is LLM-generated.
     if not is_resume_mode and conversation_complete and not ctx["should_stop"]:
         try:
             wrap = employee_chatbot_respond(
@@ -1731,13 +1921,14 @@ def founder_chat(current_user):
                 should_stop=True,
                 question_focus={},
             )
-            result["message"] = wrap.get("message") or result.get("message", "")
-            result["nextQuestion"] = ""
+            wrap_message = (wrap.get("message") or "").strip()
+            if wrap_message:
+                result["message"] = wrap_message
+                result["nextQuestion"] = ""
         except Exception as e:
             print(f"[founder_chat] wrap-up re-call failed (non-fatal): {e}")
 
-    # Append assistant message to the running thread.
-    assistant_text = result.get("message", "").strip()
+    assistant_text = (result.get("message") or "").strip()
     if assistant_text:
         chat_history.append({
             "role": "model",
@@ -1765,6 +1956,7 @@ def founder_chat(current_user):
                 extra_fields=merged_extra,
                 discovered_fields=discovered_fields,
                 resume_text=current_user.get("resume_text") or "",
+                chat_history=chat_history,
             ) or {}
             if enriched_fields:
                 print(f"[founder_chat] Profile enrichment produced: {list(enriched_fields.keys())}")
@@ -1781,17 +1973,35 @@ def founder_chat(current_user):
         "profileConfidenceScore": round(new_confidence * 100, 1),
         "dimensionScores": _safe_round_metrics(new_dim_scores),
         "chatHistory": chat_history,
+        "emptyExtractionStreak": new_empty_streak,
+        # One-question-per-field bookkeeping. These drive the no-loop
+        # guarantee in get_next_topic() / the fallback recorder above.
+        "askedFields": sorted(new_asked_fields),
+        "lastAskedField": next_target_field,
     }
+    # Persist the back-derived firstName/lastName once, so the user doc
+    # catches up with the signup data and Basic Info shows them.
+    for key in ("firstName", "lastName"):
+        if profile_ctx.get(key) and not current_user.get(key):
+            persist_payload[key] = profile_ctx[key]
+    # Persistent wrap-up flag: once the interview closes (via bucket coverage,
+    # farewell detection, SOFT/HARD_MAX_TURNS, or stuck-detector), stamp the
+    # user doc so the UI can lock the chat on every subsequent /auth/me refetch.
+    # Without this, the frontend falls back to `confidence >= 80` and unlocks
+    # the chat whenever the interview wrapped below that threshold.
+    if conversation_complete and not is_resume_mode:
+        persist_payload["interviewComplete"] = True
+        persist_payload["interviewCompletedAt"] = datetime.utcnow().isoformat()
     if new_fields:
         persist_payload["extraFields"] = merged_extra
         persist_payload["dynamicFieldLabels"] = merged_labels
         persist_payload["chatbotFieldKeys"] = list(updated_chatbot_keys)
         for key, value in new_fields.items():
             if key in _STANDARD_FIELD_SET and value not in [None, "", [], {}]:
-                persist_payload[key] = value
+                persist_payload[key] = _coerce_list_field(value) if key in _LIST_FIELDS else value
     # Enriched fields win over per-turn extracted fields for the same keys.
     for key, value in enriched_fields.items():
-        persist_payload[key] = value
+        persist_payload[key] = _coerce_list_field(value) if key in _LIST_FIELDS else value
 
     try:
         User.update_profile(current_user["_id"], persist_payload)
@@ -1802,10 +2012,17 @@ def founder_chat(current_user):
     # chatbot answers, enriched About Me, and extracted fields.
     _start_vector_upsert(current_user["_id"])
 
-    print(
-        f"[founder_chat] post-turn confidence={round(new_confidence*100)}% "
-        f"done={conversation_complete} extracted={list(new_fields.keys())}"
+    post_bucket_scores = (new_dim_scores or {}).get("section_scores", {}) or {}
+    post_bucket_str = ", ".join(
+        f"{k}={round(v*100)}%" for k, v in post_bucket_scores.items()
     )
+    print(
+        f"[founder_chat] post-turn: confidence={round(new_confidence*100)}% "
+        f"done={conversation_complete} extracted={list(new_fields.keys())} "
+        f"empty_streak={new_empty_streak}"
+    )
+    if post_bucket_str:
+        print(f"[founder_chat] post-turn buckets: {post_bucket_str}")
 
     return api_success({
         "reply": assistant_text,
@@ -1825,6 +2042,128 @@ def founder_chat(current_user):
         # Me + Basic Info immediately without waiting for a page reload.
         "enrichedFields": enriched_fields,
         "aboutMe": enriched_fields.get("aboutMe"),
+    })
+
+
+# ------------------------------------------------------------------
+# POST /profile/finish-interview  (force wrap-up + enrichment)
+# ------------------------------------------------------------------
+# Two jobs:
+#   1. Give the UI an "End Interview" button users can click when the bot
+#      goes in circles re-asking the same niche field (the 2026-04-21 demo
+#      failure mode). This forces conversation_complete=True, runs the
+#      About Me / Basic Info enrichment LLM call, persists to Mongo, and
+#      re-indexes Pinecone. Same effect as a natural completion, but
+#      user-initiated.
+#   2. Recover accounts that got stuck before this fix shipped — About Me
+#      empty, chatbot disabled but profile confidence high. Calling this
+#      endpoint fills aboutMe using the data already in Mongo without
+#      needing a fresh chat.
+@profile_bp.route("/finish-interview", methods=["POST"])
+@token_required
+def finish_interview(current_user):
+    if not Config.OPENAI_API_KEY:
+        return api_error("CONFIG_ERROR", "OpenAI API key not configured", 500)
+
+    profile_ctx = {k: v for k, v in current_user.items() if k != "password"}
+    existing_extra = current_user.get("extraFields", {}) or {}
+    existing_labels = current_user.get("dynamicFieldLabels", {}) or {}
+    discovered_fields = current_user.get("postInsights", {}) or {}
+    chat_history = list(current_user.get("chatHistory", []) or [])
+
+    enriched_fields = {}
+    try:
+        enrichment_profile = {**profile_ctx, **existing_extra}
+        raw_about = current_user.get("linkedin_about_raw")
+        if raw_about:
+            enrichment_profile["linkedin_about_raw"] = raw_about
+        enriched_fields = enrich_profile_from_chat(
+            profile_data=enrichment_profile,
+            extra_fields=existing_extra,
+            discovered_fields=discovered_fields,
+            resume_text=current_user.get("resume_text") or "",
+            chat_history=chat_history,
+        ) or {}
+        print(
+            f"[finish_interview] enrichment produced: "
+            f"{list(enriched_fields.keys())}"
+        )
+    except Exception as e:
+        print(f"[finish_interview] enrichment failed: {e}")
+        return api_error("AI_ERROR", f"Enrichment failed: {e}", 500)
+
+    # Ask the LLM to generate a natural closing message in INTERVIEW COMPLETE
+    # mode — it sees the full transcript and the collected fields, so the
+    # wrap-up reads like a personalised sign-off rather than a template.
+    # Fallback: if the LLM call fails for any reason, drop a short neutral
+    # line rather than nothing, so the transcript still ends cleanly.
+    closing_text = ""
+    try:
+        wrap = employee_chatbot_respond(
+            chat_history=chat_history,
+            profile_context=profile_ctx,
+            discovered_fields=discovered_fields,
+            extra_fields=existing_extra,
+            is_resume_mode=False,
+            confidence_score=None,
+            weakest_dimension=None,
+            progress_summary=None,
+            should_stop=True,
+            question_focus={},
+        )
+        closing_text = (wrap.get("message") or "").strip()
+    except Exception as e:
+        print(f"[finish_interview] wrap-up LLM call failed (non-fatal): {e}")
+    if not closing_text:
+        closing_text = "Interview wrapped up. Your About Me has been generated — scroll down to review it."
+    chat_history.append({
+        "role": "model",
+        "text": closing_text,
+        "ts": datetime.utcnow().isoformat(),
+    })
+
+    # Recompute confidence against the post-enrichment state so the score
+    # on the profile card reflects the final, About-Me-filled profile.
+    merged_extra_post = {**existing_extra}
+    merged_profile_post = {**profile_ctx, **existing_extra, **enriched_fields}
+    ctx = build_interview_context(
+        profile_data=merged_profile_post,
+        extra_fields=merged_extra_post,
+        discovered_fields=discovered_fields,
+        turn_count=len(chat_history),
+        chat_history=chat_history,
+    )
+
+    persist_payload = {
+        "profileConfidenceScore": round(ctx["confidence_score"] * 100, 1),
+        "dimensionScores": _safe_round_metrics(ctx["metrics"]),
+        # Stamp the interview as complete regardless of bucket coverage —
+        # this is a user-initiated wrap-up, not an automatic one.
+        "emptyExtractionStreak": 0,
+        "chatHistory": chat_history,
+        "interviewComplete": True,
+        "interviewCompletedAt": datetime.utcnow().isoformat(),
+    }
+    for key, value in enriched_fields.items():
+        if value in [None, "", [], {}]:
+            continue
+        persist_payload[key] = value
+
+    try:
+        User.update_profile(current_user["_id"], persist_payload)
+    except Exception as e:
+        print(f"[finish_interview] persist error: {e}")
+        return api_error("DB_ERROR", f"Save failed: {e}", 500)
+
+    _start_vector_upsert(current_user["_id"])
+
+    return api_success({
+        "conversationComplete": True,
+        "confidenceScore": round(ctx["confidence_score"], 3),
+        "enrichedFields": enriched_fields,
+        "aboutMe": enriched_fields.get("aboutMe"),
+        "allExtraFields": existing_extra,
+        "allFieldLabels": existing_labels,
     })
 
 

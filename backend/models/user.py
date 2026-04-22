@@ -11,13 +11,21 @@ class User:
     def create(email, password, name="", skills=None, bio="", role="user"):
         if users_collection().find_one({"email": email}):
             return None
-        
+
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        
+
+        # Split signup name into firstName / lastName so the chatbot router
+        # doesn't target them — we already have what it would ask for.
+        parts = [p for p in (name or "").strip().split() if p]
+        first_name = parts[0] if parts else ""
+        last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+
         user = {
             "email": email,
             "password": hashed_password,
             "name": name or "",
+            "firstName": first_name,
+            "lastName": last_name,
             "skills": skills or [],
             "bio": bio,
             "role": role,
