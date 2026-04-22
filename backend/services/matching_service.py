@@ -2,7 +2,10 @@ from datetime import datetime
 
 from db import get_collection
 from models.user import User
-from services.llama_service import LlamaService
+from services.candidate_profile_builder import CandidateProfileBuilder
+from services.llm_service import LLMService
+from services.matching_taxonomy import dedupe_terms, keyword_weight, normalize_term
+from services.project_requirement_builder import ProjectRequirementBuilder
 from services.vector_service import VectorService
 
 
@@ -13,15 +16,19 @@ def feedback_collection():
 class MatchingService:
     def __init__(self):
         self.vector_service = VectorService()
-        self.llama_service = LlamaService()
+        self.llm_service = LLMService()
+        self.candidate_builder = CandidateProfileBuilder()
+        self.project_builder = ProjectRequirementBuilder()
         self.default_weights = {
-            "vector_similarity": 0.25,
-            "skills_overlap": 0.20,
-            "experience_fit": 0.10,
-            "role_fit": 0.10,
-            "founder_fit": 0.35,
+            "hard_match_score": 0.30,
+            "rare_keyword_score": 0.20,
+            "critical_match_score": 0.20,
+            "domain_score": 0.10,
+            "role_score": 0.08,
+            "experience_score": 0.05,
+            "founder_fit_score": 0.05,
+            "confidence_score": 0.02,
         }
-
     def store_feedback(self, project_id: str, founder_id: str, candidate_id: str, feedback: str):
         doc = {
             "project_id": project_id,
@@ -35,372 +42,401 @@ class MatchingService:
         return doc
 
     def _normalize_vector_score(self, value: float) -> float:
-        return max(0.0, min(1.0, float(value)))
+        val = float(value)
+        mapped = (val - 0.20) / (0.80 - 0.20)
+        return max(0.0, min(1.0, mapped))
 
-    def _skills_overlap_score(self, required_skills: list, candidate_skills: list) -> float:
-        """Fuzzy skill matching — partial and substring matches count."""
-        req = [s.strip().lower() for s in required_skills if s]
-        cand = [s.strip().lower() for s in candidate_skills if s]
-        if not req:
+    def _weighted_overlap(self, required_terms: list, candidate_terms: list):
+        required = dedupe_terms([normalize_term(term) for term in required_terms if term])
+        candidate = {normalize_term(term) for term in candidate_terms if term}
+        if not required:
+            return 1.0, [], []
+
+        total = 0.0
+        matched = 0.0
+        matched_terms = []
+        missing_terms = []
+        for term in required:
+            weight = keyword_weight(term)
+            total += weight
+            if term in candidate:
+                matched += weight
+                matched_terms.append(term)
+            else:
+                missing_terms.append(term)
+        return min(1.0, matched / max(1.0, total)), matched_terms, missing_terms
+
+    def _role_score(self, required_roles: list, candidate_roles: list, candidate_title: str):
+        normalized_required = {normalize_term(role) for role in required_roles if role}
+        normalized_candidate = {normalize_term(role) for role in candidate_roles if role}
+        title = normalize_term(candidate_title)
+        if not normalized_required:
+            return 0.7, [], []
+
+        matched = []
+        missing = []
+        for role in normalized_required:
+            if role in normalized_candidate or (role and role in title):
+                matched.append(role)
+            else:
+                missing.append(role)
+        score = len(matched) / max(1, len(normalized_required))
+        return max(0.35, score), matched, missing
+
+    def _experience_score(self, minimum_years: int, candidate_years: int) -> float:
+        if minimum_years <= 0:
+            return 0.85 if candidate_years > 0 else 0.6
+        if candidate_years >= minimum_years:
             return 1.0
+        return max(0.35, candidate_years / max(1, minimum_years))
 
-        matched = 0
-        for r in req:
-            # Exact match
-            if r in cand:
-                matched += 1
-                continue
-            # Substring match: "react" matches "react.js", "python" matches "python (programming language)"
-            if any(r in c or c in r for c in cand):
-                matched += 0.8
-                continue
-            # Token overlap: "machine learning" partially matches "ml" or "deep learning"
-            r_tokens = set(r.split())
-            for c in cand:
-                c_tokens = set(c.split())
-                overlap = r_tokens & c_tokens
-                if overlap and len(overlap) >= len(r_tokens) * 0.5:
-                    matched += 0.6
-                    break
-
-        return min(1.0, matched / len(req))
-
-    def _experience_fit_score(self, project_desc: str, candidate_experience: int) -> float:
-        desc = (project_desc or "").lower()
-        target_years = 0
-        for token in desc.replace("+", " ").split():
-            if token.isdigit():
-                target_years = int(token)
-                break
-        if target_years <= 0:
-            return 0.85 if candidate_experience > 0 else 0.6
-        if candidate_experience >= target_years:
-            return 1.0
-        return max(0.4, candidate_experience / target_years)
-
-    def _role_fit_score(self, required_roles: list, candidate_title: str) -> float:
-        roles = [r.lower() for r in (required_roles or []) if r]
-        if not roles:
-            return 0.7
-        title = (candidate_title or "").lower()
-        # Exact role match
-        if any(role in title for role in roles):
-            return 1.0
-        # Fuzzy: check if any token from required roles appears in title
-        for role in roles:
-            role_tokens = set(role.split())
-            title_tokens = set(title.split())
-            if role_tokens & title_tokens:
-                return 0.75
-        return 0.4
-
-    def _founder_fit_score(self, candidate: dict) -> float:
-        """Score based on founder-profile completeness and quality from chatbot data."""
-        extra = candidate.get("extraFields", {})
-        chatbot_keys = candidate.get("chatbotFieldKeys", [])
-        if not extra and not chatbot_keys:
-            return 0.3  # No founder profiling done
+    def _founder_fit_score(self, founder_preferences: dict, candidate_fields: dict) -> float:
+        if not candidate_fields:
+            return 0.35
 
         score = 0.0
-        total_checks = 0
+        checks = 0
 
-        # Hours commitment (higher = better for startups)
-        hours = extra.get("hours_per_week", "")
+        hours = candidate_fields.get("hours_per_week")
         if hours:
-            total_checks += 1
+            checks += 1
             try:
-                h = int(str(hours).strip())
-                score += min(1.0, h / 40)
+                score += min(1.0, int(str(hours).strip()) / 40)
             except ValueError:
-                score += 0.5
+                score += 0.55
 
-        # Risk tolerance
-        risk = str(extra.get("risk_tolerance", "")).lower()
+        risk = str(candidate_fields.get("risk_tolerance", "")).lower()
         if risk:
-            total_checks += 1
-            risk_scores = {"high": 1.0, "moderate": 0.7, "medium": 0.7, "low": 0.4}
-            score += risk_scores.get(risk, 0.5)
+            checks += 1
+            score += {"high": 1.0, "moderate": 0.75, "medium": 0.75, "low": 0.45}.get(risk, 0.55)
 
-        # Previous startup experience
-        startup_exp = str(extra.get("previous_startup_experience", "")).lower()
-        if startup_exp:
-            total_checks += 1
-            score += 0.9 if startup_exp not in ["no", "none", ""] else 0.5
-
-        # Urgency/timeline
-        urgency = str(extra.get("urgency_to_start", extra.get("timeline_to_start", ""))).lower()
-        if urgency:
-            total_checks += 1
-            if "immediate" in urgency or "now" in urgency or "asap" in urgency:
-                score += 1.0
-            elif "month" in urgency and any(c.isdigit() for c in urgency):
-                score += 0.7
-            else:
-                score += 0.5
-
-        # Financial runway
-        runway = str(extra.get("financial_runway", "")).lower()
-        if runway:
-            total_checks += 1
-            try:
-                months = int(''.join(c for c in runway if c.isdigit()) or '0')
-                score += min(1.0, months / 6)
-            except ValueError:
-                score += 0.4
-
-        # Leadership & collaboration style
-        leadership = str(extra.get("leadership_style", "")).lower()
+        leadership = str(candidate_fields.get("leadership_style", "")).lower()
         if leadership:
-            total_checks += 1
-            if "collaborative" in leadership or "team" in leadership or "hands" in leadership:
+            checks += 1
+            founder_leadership = str(founder_preferences.get("leadership_style", "")).lower()
+            if founder_leadership and founder_leadership in leadership:
+                score += 1.0
+            elif "team" in leadership or "collaborative" in leadership:
                 score += 0.9
             else:
                 score += 0.6
 
-        # Domain expertise
-        domain = extra.get("domain_expertise", "") or extra.get("domain_expertise_areas", "")
-        if domain:
-            total_checks += 1
-            score += 0.8
+        technical_orientation = str(
+            candidate_fields.get("technical_vs_business_orientation")
+            or candidate_fields.get("technical_orientation")
+            or ""
+        ).lower()
+        if technical_orientation:
+            checks += 1
+            founder_orientation = str(founder_preferences.get("technical_orientation", "")).lower()
+            if founder_orientation and founder_orientation in technical_orientation:
+                score += 1.0
+            elif "technical" in technical_orientation:
+                score += 0.9
+            else:
+                score += 0.65
 
-        # Profile completeness bonus
-        chatbot_count = len(chatbot_keys)
-        if chatbot_count >= 10:
-            total_checks += 1
-            score += 1.0
-        elif chatbot_count >= 5:
-            total_checks += 1
-            score += 0.7
+        domain_expertise = candidate_fields.get("domain_expertise") or candidate_fields.get("domain_expertise_areas")
+        if domain_expertise:
+            checks += 1
+            score += 0.85
 
-        if total_checks == 0:
-            return 0.3
-        return min(1.0, score / total_checks)
+        if checks == 0:
+            return 0.35
+        return min(1.0, score / checks)
+
+    def _confidence_score(self, candidate_profile: dict, hard_match_score: float, rare_keyword_score: float) -> float:
+        inputs = candidate_profile["confidence_inputs"]
+        score = 0.0
+        score += 0.25 if inputs["has_resume"] else 0.0
+        score += 0.20 if inputs["has_normalized_profile"] else 0.0
+        score += min(0.20, inputs["evidence_count"] * 0.04)
+        score += min(0.20, inputs["term_count"] / 80)
+        score += min(0.15, inputs["domain_count"] / 20)
+        score += 0.10 if hard_match_score >= 0.7 else 0.0
+        score += 0.10 if rare_keyword_score >= 0.6 else 0.0
+        return min(1.0, score)
+
+    def _ai_depth_score(self, requirements: dict, candidate_profile: dict) -> float:
+        project_ai_terms = {
+            term for term in requirements["critical_terms"]
+            if term in {"rag", "llms", "openai", "generative ai", "nlp", "machine learning", "deep learning", "vector databases", "pinecone", "chromadb", "fastapi"}
+        }
+        if not project_ai_terms:
+            return 0.8
+
+        candidate_ai_terms = set(candidate_profile.get("ai_depth_terms", []))
+        overlap = len(project_ai_terms & candidate_ai_terms) / max(1, len(project_ai_terms))
+
+        title = normalize_term(candidate_profile["title"])
+        looks_generic_full_stack = "full stack" in title or "software engineer" in title
+        if looks_generic_full_stack and overlap < 0.45:
+            return max(0.2, overlap * 0.7)
+        return max(0.3, overlap)
 
     def _weighted_score(self, subscores: dict) -> float:
         return sum(self.default_weights.get(key, 0) * subscores.get(key, 0) for key in self.default_weights)
 
-    def _build_candidate_block(self, idx: int, candidate: dict) -> str:
-        """Build a rich candidate description for the LLM including founder profile data."""
-        extra = candidate.get("extraFields", {})
+    def _anchor_scores(self, scored_matches: list) -> list:
+        """
+        Anchor the #1 candidate at 95%+ and scale everyone else
+        proportionally, preserving the real gaps between candidates.
+        """
+        if not scored_matches:
+            return scored_matches
 
-        # Core info
-        block = f"""
-Candidate {idx}:
-- Name: {candidate.get('name', '')}
-- Professional Title: {candidate.get('professional_title', '')}
-- Skills: {', '.join(candidate.get('skills', [])[:25])}
-- Experience: {candidate.get('experience_years', 0)} years
-- Bio: {candidate.get('bio', '')[:400]}
-- Core Domains: {', '.join(candidate.get('coreDomains', [])[:6])}
-- Interests: {', '.join(candidate.get('interests', [])[:6])}
-- Career Goals: {candidate.get('careerGoals', '')[:200]}
-- Strengths: {candidate.get('strengths', '')}
-- Work Style: {candidate.get('workStyle', '')}"""
+        weighted_values = [item["_deterministic_match"]["weighted"] for item in scored_matches]
+        best_raw = max(weighted_values)
 
-        # Founder profile from chatbot
-        founder_fields = {
-            "hours_per_week": "Weekly Commitment",
-            "equity_preference": "Equity/Compensation Preference",
-            "risk_tolerance": "Risk Tolerance",
-            "previous_startup_experience": "Startup Experience",
-            "leadership_style": "Leadership Style",
-            "stage_preference": "Preferred Stage",
-            "unique_value": "Unique Value Proposition",
-            "co_founder_expectations": "Co-Founder Expectations",
-            "geographic_preferences": "Location Preference",
-            "industry_preferences": "Industry Preference",
-            "financial_runway": "Financial Runway",
-            "domain_expertise": "Domain Expertise",
-            "urgency_to_start": "Timeline to Start",
-            "technical_or_business_orientation": "Technical/Business Orientation",
-            "decision_making_style": "Decision Style",
-            "conflict_resolution_approach": "Conflict Resolution",
-            "network_strength": "Network Strength",
+        if best_raw <= 0:
+            for item in scored_matches:
+                item["_deterministic_match"]["final_percentage"] = 5
+            return scored_matches
+
+        # Anchor: map the best raw score to 96%.
+        # Everyone else = (their_raw / best_raw) * 96, preserving gaps.
+        anchor = 96.0
+        for item in scored_matches:
+            raw = item["_deterministic_match"]["weighted"]
+            ratio = raw / best_raw
+            display = ratio * anchor
+
+            # Apply small bonuses/penalties based on skill match quality
+            subscores = item["_deterministic_match"]["subscores"]
+            if subscores["critical_match_score"] >= 0.90:
+                display += 2.0
+            if subscores["hard_match_score"] < 0.40:
+                display -= 5.0
+
+            item["_deterministic_match"]["final_percentage"] = max(
+                5, min(99, int(round(display)))
+            )
+
+        scored_matches.sort(
+            key=lambda item: (
+                item["_deterministic_match"]["final_percentage"],
+                item["_deterministic_match"]["weighted"],
+            ),
+            reverse=True,
+        )
+        return scored_matches
+
+    def _build_scored_candidate(self, candidate: dict, requirements: dict) -> dict:
+        candidate_profile = self.candidate_builder.build(candidate)
+
+        hard_match_score, matched_terms, missing_terms = self._weighted_overlap(
+            requirements["exact_terms"],
+            candidate_profile["exact_terms"],
+        )
+        rare_keyword_score, matched_rare_terms, missing_rare_terms = self._weighted_overlap(
+            requirements["rare_terms"],
+            candidate_profile["exact_terms"],
+        )
+        critical_match_score, matched_critical_terms, missing_critical_terms = self._weighted_overlap(
+            requirements["critical_terms"],
+            candidate_profile["exact_terms"],
+        )
+        domain_score, matched_domains, missing_domains = self._weighted_overlap(
+            requirements["domain_terms"],
+            candidate_profile["domain_terms"] + candidate_profile["exact_terms"],
+        )
+        role_score, matched_roles, missing_roles = self._role_score(
+            requirements["role_terms"],
+            candidate_profile["role_terms"],
+            candidate_profile["title"],
+        )
+        experience_score = self._experience_score(
+            requirements["minimum_years"],
+            candidate_profile["years_experience"],
+        )
+        founder_fit_score = self._founder_fit_score(
+            requirements["founder_preferences"],
+            candidate_profile["founder_fields"],
+        )
+        confidence_score = self._confidence_score(candidate_profile, hard_match_score, rare_keyword_score)
+        ai_depth_score = self._ai_depth_score(requirements, candidate_profile)
+
+        subscores = {
+            "hard_match_score": hard_match_score,
+            "rare_keyword_score": rare_keyword_score,
+            "critical_match_score": critical_match_score,
+            "domain_score": domain_score,
+            "role_score": role_score,
+            "experience_score": experience_score,
+            "founder_fit_score": founder_fit_score,
+            "confidence_score": confidence_score,
+            "ai_depth_score": ai_depth_score,
+            "retrieval_score": self._normalize_vector_score(candidate_profile["vector_similarity"]),
         }
-        founder_parts = []
-        for key, label in founder_fields.items():
-            val = extra.get(key, "")
-            if val and val not in [[], {}, ""]:
-                display = ", ".join(val) if isinstance(val, list) else str(val)
-                founder_parts.append(f"{label}: {display}")
+        weighted = self._weighted_score(subscores)
+        # final_percentage is a placeholder here; the real display score
+        # is computed by _anchor_scores after all candidates are ranked.
+        final_percentage = int(round(weighted * 100))
 
-        if founder_parts:
-            block += f"\n- Founder Profile: {' | '.join(founder_parts)}"
-
-        # Resume snippet
-        if candidate.get("resume_text"):
-            block += f"\n- Resume: {candidate['resume_text'][:1000]}"
-
-        return block
+        return {
+            "candidate_profile": candidate_profile,
+            "subscores": subscores,
+            "weighted": weighted,
+            "final_percentage": max(0, min(100, final_percentage)),
+            "matched_terms": matched_terms,
+            "missing_terms": missing_terms[:12],
+            "matched_rare_terms": matched_rare_terms,
+            "missing_rare_terms": missing_rare_terms[:10],
+            "matched_critical_terms": matched_critical_terms,
+            "missing_critical_terms": missing_critical_terms[:10],
+            "matched_domains": matched_domains,
+            "missing_domains": missing_domains[:8],
+            "matched_roles": matched_roles,
+            "missing_roles": missing_roles[:8],
+        }
 
     def find_matches(self, project: dict, founder_id: str, top_k: int = 10) -> list:
-        project_analysis = self.llama_service.analyze_project_needs(project["description"])
-        required_skills = project_analysis.get("required_skills", []) or project.get("required_skills", [])
-        required_roles = project_analysis.get("required_roles", [])
-
-        skills_text = ", ".join(required_skills)
-        roles_text = ", ".join(required_roles)
-        search_query = f"{project['description']} Required skills: {skills_text}. Roles: {roles_text}"
-
-        vector_results = self.vector_service.search(query_text=search_query, k=top_k, exclude_ids=[founder_id])
+        requirements = self.project_builder.build(project)
+        search_query = f"{requirements['title']}\n{requirements['description']}\nRequired: {', '.join(requirements['exact_terms'])}"
+        vector_results = self.vector_service.search(query_text=search_query, k=max(30, top_k * 6), exclude_ids=[founder_id])
         if not vector_results:
             return []
 
-        candidates = []
+        scored_candidates = []
         for result in vector_results:
-            user = User.find_by_id(result["user_id"])
-            if user:
-                user["vector_similarity"] = result["similarity_score"]
-                candidates.append(user)
-        if not candidates:
+            candidate = User.find_by_id(result["user_id"])
+            if not candidate:
+                continue
+            candidate["vector_similarity"] = result["similarity_score"]
+            candidate["_deterministic_match"] = self._build_scored_candidate(candidate, requirements)
+            scored_candidates.append(candidate)
+
+        if not scored_candidates:
             return []
 
-        # Build rich candidate blocks for LLM
-        candidate_blocks = ""
-        for i, candidate in enumerate(candidates[:10]):
-            candidate_blocks += self._build_candidate_block(i, candidate)
-
-        # Get founder's own profile for compatibility matching
-        founder = User.find_by_id(founder_id)
-        founder_context = ""
-        if founder:
-            founder_extra = founder.get("extraFields", {})
-            founder_parts = []
-            for key in ["leadership_style", "stage_preference", "industry_preferences", "equity_preference", "risk_tolerance"]:
-                val = founder_extra.get(key, "")
-                if val:
-                    founder_parts.append(f"{key.replace('_', ' ').title()}: {val}")
-            if founder_parts:
-                founder_context = f"\nFounder's Preferences: {' | '.join(founder_parts)}"
-
-        rankings = self._rank_with_llm(project, candidate_blocks, project_analysis, founder_context)
-        rank_map = {
-            ranking.get("candidate_index"): ranking
-            for ranking in rankings
-            if isinstance(ranking.get("candidate_index"), int)
-        }
+        scored_candidates.sort(
+            key=lambda item: (
+                item["_deterministic_match"]["weighted"],
+                item["_deterministic_match"]["subscores"]["ai_depth_score"],
+                item["_deterministic_match"]["subscores"]["critical_match_score"],
+                item["_deterministic_match"]["subscores"]["rare_keyword_score"],
+                item["_deterministic_match"]["subscores"]["hard_match_score"],
+                item["_deterministic_match"]["subscores"]["confidence_score"],
+            ),
+            reverse=True,
+        )
+        candidates = scored_candidates[: max(10, top_k * 2)]
+        candidates = self._anchor_scores(candidates)
 
         matches = []
         seen_user_ids = set()
-        for idx, candidate in enumerate(candidates[:10]):
+        for candidate in candidates[:10]:
             user_id = candidate["_id"]
             if user_id in seen_user_ids:
                 continue
             seen_user_ids.add(user_id)
 
-            ranking = rank_map.get(idx, {})
-            subscores = {
-                "vector_similarity": self._normalize_vector_score(candidate.get("vector_similarity", 0)),
-                "skills_overlap": self._skills_overlap_score(required_skills, candidate.get("skills", [])),
-                "experience_fit": self._experience_fit_score(project.get("description", ""), candidate.get("experience_years", 0) or 0),
-                "role_fit": self._role_fit_score(required_roles, candidate.get("professional_title", "")),
-                "founder_fit": self._founder_fit_score(candidate),
-            }
-            weighted = self._weighted_score(subscores)
-
-            # LLM gets 50% weight, deterministic gets 50%
-            llm_percentage = max(0, min(100, int(ranking.get("match_percentage", round(weighted * 100)))))
-            final_percentage = int(round((weighted * 100 * 0.5) + (llm_percentage * 0.5)))
+            precomputed = candidate.get("_deterministic_match") or self._build_scored_candidate(candidate, requirements)
+            candidate_profile = precomputed["candidate_profile"]
+            subscores = precomputed["subscores"]
+            final_percentage = precomputed["final_percentage"]
+            reasoning, strengths, concerns = self._build_explanation(requirements, candidate_profile, precomputed)
 
             matches.append(
                 {
                     "user_id": user_id,
-                    "name": candidate.get("name", ""),
-                    "email": candidate.get("email", ""),
-                    "role": candidate.get("role", "user"),
-                    "is_founder": candidate.get("role", "user") == "founder",
-                    "professional_title": candidate.get("professional_title", ""),
-                    "skills": candidate.get("skills", []),
-                    "bio": candidate.get("bio", ""),
-                    "linkedin": candidate.get("linkedin", ""),
-                    "resume": candidate.get("resume", ""),
-                    "experience_years": candidate.get("experience_years", 0),
+                    "name": candidate_profile["name"],
+                    "email": candidate_profile["email"],
+                    "role": candidate_profile["role"],
+                    "is_founder": candidate_profile["is_founder"],
+                    "professional_title": candidate_profile["title"],
+                    "skills": candidate_profile["skills_display"],
+                    "bio": candidate_profile["bio"],
+                    "linkedin": candidate_profile["linkedin"],
+                    "resume": candidate_profile["resume"],
+                    "experience_years": candidate_profile["years_experience"],
                     "match_percentage": final_percentage,
-                    "reasoning": ranking.get("reasoning", ""),
-                    "strengths": ranking.get("strengths", []),
-                    "concerns": ranking.get("concerns", []),
-                    "vector_similarity": candidate.get("vector_similarity", 0),
+                    "reasoning": reasoning,
+                    "strengths": strengths,
+                    "concerns": concerns,
+                    "vector_similarity": candidate_profile["vector_similarity"],
                     "founder_profile": {
-                        k: v for k, v in candidate.get("extraFields", {}).items()
+                        k: v for k, v in candidate_profile["founder_fields"].items()
                         if v and v not in [[], {}, ""]
                     },
                     "explanation": {
                         "subscores": {
-                            "vector_similarity": round(subscores["vector_similarity"] * 100, 2),
-                            "skills_overlap": round(subscores["skills_overlap"] * 100, 2),
-                            "experience_fit": round(subscores["experience_fit"] * 100, 2),
-                            "role_fit": round(subscores["role_fit"] * 100, 2),
-                            "founder_fit": round(subscores["founder_fit"] * 100, 2),
+                            "hard_match_score": round(subscores["hard_match_score"] * 100, 2),
+                            "rare_keyword_score": round(subscores["rare_keyword_score"] * 100, 2),
+                            "critical_match_score": round(subscores["critical_match_score"] * 100, 2),
+                            "domain_score": round(subscores["domain_score"] * 100, 2),
+                            "role_score": round(subscores["role_score"] * 100, 2),
+                            "experience_score": round(subscores["experience_score"] * 100, 2),
+                            "founder_fit_score": round(subscores["founder_fit_score"] * 100, 2),
+                            "confidence_score": round(subscores["confidence_score"] * 100, 2),
+                            "ai_depth_score": round(subscores["ai_depth_score"] * 100, 2),
+                            "retrieval_score": round(subscores["retrieval_score"] * 100, 2),
                         },
                         "weights": self.default_weights,
-                        "llm_match_percentage": llm_percentage,
                         "final_match_percentage": final_percentage,
+                        "matched_requirements": {
+                            "terms": precomputed["matched_terms"],
+                            "rare_terms": precomputed["matched_rare_terms"],
+                            "critical_terms": precomputed["matched_critical_terms"],
+                            "domains": precomputed["matched_domains"],
+                            "roles": precomputed["matched_roles"],
+                        },
+                        "missing_requirements": {
+                            "terms": precomputed["missing_terms"],
+                            "rare_terms": precomputed["missing_rare_terms"],
+                            "critical_terms": precomputed["missing_critical_terms"],
+                            "domains": precomputed["missing_domains"],
+                            "roles": precomputed["missing_roles"],
+                        },
                     },
                 }
             )
 
-        matches.sort(key=lambda m: m["match_percentage"], reverse=True)
+        matches.sort(key=lambda item: item["match_percentage"], reverse=True)
         return matches[:5]
 
-    def _rank_with_llm(self, project, candidate_blocks, project_analysis, founder_context=""):
-        requirements_context = ""
-        if project_analysis:
-            req_skills = project_analysis.get("required_skills", [])
-            req_roles = project_analysis.get("required_roles", [])
-            key_competencies = project_analysis.get("key_competencies", [])
-            founding_qualities = project_analysis.get("founding_qualities", [])
-            requirements_context = f"""
-Pre-analyzed Project Requirements:
-- Required Skills: {', '.join(req_skills) if req_skills else 'Derive from description'}
-- Required Roles: {', '.join(req_roles) if req_roles else 'Derive from description'}
-- Key Competencies: {', '.join(key_competencies) if key_competencies else 'Derive from description'}
-- Founding Qualities Needed: {', '.join(founding_qualities) if founding_qualities else 'Derive from description'}
-"""
-
+    def _build_explanation(self, requirements: dict, candidate_profile: dict, precomputed: dict):
         prompt = f"""
-You are a senior startup advisor scoring candidates for a co-founder matching platform.
+You are writing a concise explanation for a deterministic co-founder matching system.
 
-Your task: score each candidate's overall fit for this project as a potential co-founder or key team member.
+Project:
+- Title: {requirements['title']}
+- Core requirements: {', '.join(requirements['exact_terms'][:20])}
+- Domains: {', '.join(requirements['domain_terms'][:10])}
 
-Project Title: {project.get('title', '')}
-Project Description:
-{project.get('description', '')[:3000]}
-{requirements_context}
-{founder_context}
+Candidate:
+- Name: {candidate_profile['name']}
+- Title: {candidate_profile['title']}
+- Experience: {candidate_profile['years_experience']} years
+- Skills: {', '.join(candidate_profile['exact_terms'][:25])}
+- Domains: {', '.join(candidate_profile['domain_terms'][:10])}
 
-Score each candidate holistically on these criteria:
-1. Technical skill match (25%) — do their skills align with what the project needs?
-2. Domain & industry alignment (20%) — do they have relevant domain expertise?
-3. Founder mindset & commitment (30%) — hours/week, risk tolerance, financial runway, urgency, leadership style
-4. Team compatibility (15%) — work style, collaboration preference, conflict resolution
-5. Experience & execution signals (10%) — past experience, achievements, projects
+Deterministic score: {precomputed['final_percentage']}%
+Matched requirements: {', '.join(precomputed['matched_terms'][:12])}
+Missing requirements: {', '.join(precomputed['missing_terms'][:8])}
+Matched rare terms: {', '.join(precomputed['matched_rare_terms'][:8])}
 
-IMPORTANT:
-- Candidates who completed a founder profile (hours_per_week, equity preference, etc.) should score higher on founder mindset
-- A candidate with 40 hrs/week, high risk tolerance, immediate start, and relevant domain expertise is a strong co-founder
-- Consider compatibility with the founder's preferences if provided
-- Be generous but fair — most candidates on a co-founder platform are already self-selected
-
-Candidates:
-{candidate_blocks}
-
-Respond ONLY in valid JSON:
+Return ONLY valid JSON:
 {{
-    "rankings": [
-        {{
-            "candidate_index": 0,
-            "match_percentage": 85,
-            "reasoning": "2-3 sentence explanation focusing on co-founder fit",
-            "strengths": ["specific strength 1", "specific strength 2"],
-            "concerns": ["specific gap or concern"]
-        }}
-    ]
+  "reasoning": "2 short sentences, grounded in the deterministic evidence, with no generic praise",
+  "strengths": ["specific strength", "specific strength"],
+  "concerns": ["specific concern"]
 }}
-
-Sort rankings by match_percentage descending. Include every candidate exactly once.
-Score range guidance: 80-100 = excellent co-founder fit, 60-79 = good potential, 40-59 = moderate fit, below 40 = weak fit.
 """
-        result = self.llama_service.generate_json(prompt)
-        if result and "rankings" in result:
-            return sorted(result["rankings"], key=lambda x: x.get("match_percentage", 0), reverse=True)
-        return []
+        result = self.llm_service.generate_json(prompt)
+        if result:
+            return (
+                result.get("reasoning", ""),
+                result.get("strengths", [])[:3],
+                result.get("concerns", [])[:3],
+            )
+
+        strengths = precomputed["matched_critical_terms"][:3] or precomputed["matched_rare_terms"][:3] or precomputed["matched_terms"][:3]
+        concerns = precomputed["missing_critical_terms"][:2] or precomputed["missing_rare_terms"][:2] or precomputed["missing_terms"][:2]
+        reasoning = (
+            f"{candidate_profile['name']} matches {len(precomputed['matched_terms'])} structured requirements for this project, "
+            f"including {', '.join(strengths[:2]) if strengths else 'core stack overlap'}."
+        )
+        if concerns:
+            reasoning += f" Main gaps are {', '.join(concerns[:2])}."
+        return reasoning, strengths, concerns

@@ -52,16 +52,45 @@ class VectorService:
 
     def _user_to_text(self, user: Dict) -> str:
         """
-        Build a rich text representation of a user so the embedding captures
-        everything meaningful: bio, skills, title, resume content, location,
-        and new LinkedIn profile fields.
+        Build a rich text representation of a user.
+        If a Fine-Tuned normalized profile exists, use it exclusively (plus name/location)
+        for extremely clean, noise-free Pinecone matching.
         """
         parts = []
 
-        if user.get("name"):
-            parts.append(f"Name: {user['name']}")
-        elif user.get("firstName"):
+        # Always include identity
+        if user.get("firstName"):
             parts.append(f"Name: {user.get('firstName', '')} {user.get('lastName', '')}")
+        elif user.get("name"):
+            parts.append(f"Name: {user['name']}")
+
+        loc_parts = [str(p).strip() for p in [user.get("city"), user.get("state"), user.get("country")] if p]
+        if loc_parts:
+            parts.append(f"Location: {', '.join(loc_parts)}")
+        elif user.get("location"):
+            parts.append(f"Location: {self._stringify_metadata_value(user['location'])}")
+
+        # IF NORMALIZED DATA EXISTS -> use it as the backbone, but keep rich raw signals too.
+        if "normalized_profile" in user and isinstance(user["normalized_profile"], dict) and len(user["normalized_profile"]) > 0:
+            np = user["normalized_profile"]
+            # Convert list fields safely
+            canonical = np.get('canonical_skills', [])
+            skills_str = ', '.join(canonical) if isinstance(canonical, list) else str(canonical)
+            
+            domains = np.get('core_domains', [])
+            domains_str = ', '.join(domains) if isinstance(domains, list) else str(domains)
+            
+            flags = np.get('startup_compatibility_flags', [])
+            flags_str = ', '.join(flags) if isinstance(flags, list) else str(flags)
+
+            parts.extend([
+                f"Primary Role: {np.get('primary_role', '')}",
+                f"Unified Summary: {np.get('unified_profile_summary', '')}",
+                f"Canonical Skills: {skills_str}",
+                f"Core Domains: {domains_str}",
+                f"Total Experience: {np.get('total_experience_years', 0)} years",
+                f"Startup Compatibility Flags: {flags_str}"
+            ])
 
         if user.get("headline"):
             parts.append(f"Headline: {user['headline']}")
@@ -84,6 +113,18 @@ class VectorService:
         skills = user.get("skills", [])
         if skills:
             parts.append(f"Skills: {', '.join(skills)}")
+
+        tools = user.get("tools", [])
+        if tools:
+            parts.append(f"Tools: {', '.join(tools)}")
+
+        domains = user.get("coreDomains", [])
+        if domains:
+            parts.append(f"Domains: {', '.join(domains)}")
+
+        interests = user.get("interests", [])
+        if interests:
+            parts.append(f"Interests: {', '.join(interests)}")
 
         loc_parts = [str(p).strip() for p in [user.get("city"), user.get("state"), user.get("country")] if p]
         if loc_parts:
@@ -114,7 +155,7 @@ class VectorService:
             if extra_parts:
                 parts.append(f"Insights: {' | '.join(extra_parts[:15])}")
 
-        return " | ".join(parts) if parts else user.get("name", "Unknown Profile")
+        return "\n".join([p for p in parts if p.strip() and not p.endswith(": ")]) if parts else user.get("name", "Unknown Profile")
 
     def _stringify_metadata_value(self, value):
         if value is None:

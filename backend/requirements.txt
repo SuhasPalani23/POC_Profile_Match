@@ -6,7 +6,6 @@ pymongo
 python-dotenv
 bcrypt
 PyJWT
-google-genai
 pinecone
 sentence-transformers
 numpy
@@ -17,5 +16,4 @@ python-docx
 Werkzeug
 eventlet
 requests
-groq
 openai

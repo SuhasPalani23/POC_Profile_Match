@@ -32,14 +32,7 @@ def get_matches(current_user, project_id):
     if not project.get("live", False):
         return api_error("PROJECT_NOT_LIVE", "Project is not live yet", 400)
 
-    if project.get("cached_matches"):
-        return api_success(
-            {"project_id": project_id, "matches": project["cached_matches"], "cached": True},
-            message="Matches fetched from cache",
-        )
-
     matches = get_matching_service().find_matches(project, current_user["_id"])
-    Project.cache_matches(project_id, matches)
     return api_success(
         {"project_id": project_id, "matches": matches, "cached": False},
         message="Matches generated",
