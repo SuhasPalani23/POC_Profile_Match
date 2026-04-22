@@ -25,8 +25,25 @@ from __future__ import annotations
 
 STOP_THRESHOLD = 0.80   # lowered from 0.85 so it aligns with bucket-minimum math
 MIN_TURNS = 6           # 3 user replies minimum
-SOFT_MAX_TURNS = 40     # normal ceiling (~20 user replies, enough to cover all buckets)
-HARD_MAX_TURNS = 50     # absolute ceiling
+SOFT_MAX_TURNS = 60     # normal ceiling (~30 user replies — enough room to cover
+                        # ALL five buckets even when the user gives short answers).
+                        # 40 was too tight: in the 2026-04-22 session the bot
+                        # looped inside topic_depth and hit the cap with market_fit
+                        # and founder_fit still at 0%, forcing a wrap with no
+                        # answers at all in those buckets.
+HARD_MAX_TURNS = 80     # absolute ceiling (bumped in lockstep)
+# If this many consecutive assistant turns extract zero fields while we're
+# already past STOP_THRESHOLD, we treat the interview as stuck and wrap up.
+# This is the exact failure from the 2026-04-21 demo: confidence plateaued at
+# 91% while two niche founder_fit fields never got extracted despite repeated
+# asking — chatbot kept looping, LLM hallucinated a goodbye, UI never closed.
+STUCK_EMPTY_TURNS = 3
+# Weaker stuck-detector: if the bot extracts nothing for this many turns in a
+# row regardless of confidence, rotate off the current bucket. Prevents the
+# topic_depth death-loop seen on 2026-04-22 where short answers ("development",
+# "team lead", "to get this done") repeatedly failed extraction, the router
+# kept returning the same bucket, and the LLM rephrased the same questions.
+BUCKET_ROTATE_EMPTY_TURNS = 4
 
 
 # Ordered — this is the order the router walks through them.
@@ -80,7 +97,7 @@ BUCKETS = [
         "name": "founder_fit",
         "label": "Founder Fit",
         "weight": 0.30,
-        "minimum": 0.85,
+        "minimum": 0.70,
         "fields": [
             "hours_per_week", "equity_expectations", "compensation_expectations",
             "risk_tolerance", "financial_runway", "urgency_to_start",
@@ -144,46 +161,75 @@ def calculate_confidence(profile_data, extra_fields, discovered_fields=None, cha
     }
 
 
-def get_next_topic(profile_data, extra_fields, discovered_fields=None, chat_history=None):
+def get_next_topic(profile_data, extra_fields, discovered_fields=None, chat_history=None, consecutive_empty_turns=0, asked_fields=None):
     """
-    Pick the next bucket to focus on. Walks buckets in priority order and
-    returns the first one still below its minimum. If every bucket is above
-    its minimum, return wrap_up.
+    Pick the next bucket + target field to ask about.
+
+    Contract: ONE question per field, NEVER repeat. We walk EVERY bucket in
+    order (identity → professional_background → topic_depth → market_fit →
+    founder_fit) and, inside each, pick the first field that hasn't been
+    asked yet. Confidence / bucket minimums are NOT a gate anymore — even if
+    a bucket is already "above minimum" it still has to be asked about if it
+    contains unasked fields, and even if a bucket never reaches minimum we
+    still march forward to the next bucket after asking everything in this
+    one. "User gave a lousy answer" is the user's problem; we record what
+    they said, move on, and let the final confidence score reflect reality.
+
+    Wrap-up fires iff every canonical field in every bucket has been asked
+    exactly once.
+
+    `asked_fields` is the persisted set of field keys the bot has already
+    posed a question about.
     """
     profile_data = profile_data or {}
     extra_fields = extra_fields or {}
     discovered_fields = discovered_fields or {}
+    asked_fields = set(asked_fields or [])
 
+    def _unasked(bucket):
+        return [
+            f for f in bucket["fields"]
+            if f not in asked_fields
+            and not _field_filled(f, profile_data, extra_fields, discovered_fields)
+        ]
+
+    # Walk buckets in priority order. First bucket with any unasked field
+    # wins — regardless of that bucket's score vs. its minimum. This is the
+    # "keep going until founder_fit is done" guarantee.
     for bucket in BUCKETS:
+        unasked = _unasked(bucket)
+        if not unasked:
+            continue
+        target_field = unasked[0]
         score = _bucket_score(bucket, profile_data, extra_fields, discovered_fields)
-        if score < bucket["minimum"]:
-            missing = _bucket_missing_fields(bucket, profile_data, extra_fields, discovered_fields)
-            return {
-                "type": bucket["name"],
-                "bucket_label": bucket["label"],
-                "signal": bucket["label"],
-                "target": bucket["name"],
-                "score": score,
-                "minimum": bucket["minimum"],
-                "missing_fields": missing,
-                "description": bucket["description"],
-                "evidence": (
-                    f"{bucket['label']} bucket is at {round(score * 100)}% — "
-                    f"below the {round(bucket['minimum'] * 100)}% minimum. "
-                    f"Missing fields: {', '.join(missing) if missing else 'coverage is thin'}."
-                ),
-            }
+        return {
+            "type": bucket["name"],
+            "bucket_label": bucket["label"],
+            "signal": bucket["label"],
+            "target": bucket["name"],
+            "target_field": target_field,
+            "score": score,
+            "minimum": bucket["minimum"],
+            "missing_fields": unasked,
+            "description": bucket["description"],
+            "evidence": (
+                f"{bucket['label']} bucket at {round(score * 100)}% "
+                f"(minimum {round(bucket['minimum'] * 100)}%). "
+                f"Next unasked field: {target_field}."
+            ),
+        }
 
     return {
         "type": "wrap_up",
         "bucket_label": "Wrap Up",
         "signal": "final summary",
         "target": "",
+        "target_field": None,
         "score": 1.0,
         "minimum": 1.0,
         "missing_fields": [],
-        "description": "all buckets reached their minimum — time to wrap up",
-        "evidence": "Every bucket has enough signal for matching.",
+        "description": "every field in every bucket has been asked once — wrapping up",
+        "evidence": "Every field has been asked at most once. Done.",
     }
 
 
@@ -202,23 +248,30 @@ def _build_progress_summary(confidence, turn_count, bucket_scores):
 
 
 def should_stop_interview(confidence_score, turn_count, next_topic_type="",
-                          is_resume_mode=False, all_buckets_met=False):
+                          is_resume_mode=False, all_buckets_met=False,
+                          consecutive_empty_turns=0, untouched_buckets=0):
     """
-    Primary stop: all buckets reached their minimum (next_topic_type == 'wrap_up').
-    The chatbot must cover every bucket before closing.
+    The ONLY legitimate reasons to stop:
+      1. `next_topic_type == 'wrap_up'` — every field in every bucket has
+         already been asked exactly once. This is the natural end.
+      2. `turn_count >= HARD_MAX_TURNS` — absolute safety rail to prevent a
+         runaway if something goes wrong upstream.
 
-    Escape hatch: SOFT_MAX_TURNS (40) / HARD_MAX_TURNS (50) for cases where
-    a few niche fields are never answered despite repeated asking.
+    Confidence score and per-bucket minimums are NOT stop signals anymore.
+    If the user gave lousy answers and the score is low, that's the user's
+    problem; we still cover founder_fit and wrap up with a crisp About Me
+    summarising whatever they did share. The score gets recorded as-is.
+
+    `confidence_score`, `all_buckets_met`, `consecutive_empty_turns`, and
+    `untouched_buckets` are kept in the signature for call-site stability
+    (route layer passes them in) but deliberately unused.
     """
+    del confidence_score, all_buckets_met, consecutive_empty_turns, untouched_buckets
     if is_resume_mode:
         return False
     if turn_count >= HARD_MAX_TURNS:
         return True
-    if next_topic_type == "wrap_up" or all_buckets_met:
-        return True
-    if turn_count < MIN_TURNS:
-        return False
-    if turn_count >= SOFT_MAX_TURNS:
+    if next_topic_type == "wrap_up":
         return True
     return False
 
@@ -229,13 +282,25 @@ def build_interview_context(
     discovered_fields=None,
     turn_count=0,
     chat_history=None,
+    consecutive_empty_turns=0,
+    asked_fields=None,
 ):
     confidence, metrics = calculate_confidence(profile_data, extra_fields, discovered_fields, chat_history)
-    next_topic = get_next_topic(profile_data, extra_fields, discovered_fields, chat_history)
+    next_topic = get_next_topic(
+        profile_data, extra_fields, discovered_fields, chat_history,
+        consecutive_empty_turns=consecutive_empty_turns,
+        asked_fields=asked_fields,
+    )
     bucket_scores = metrics["section_scores"]
 
     all_buckets_met = all(
         bucket_scores.get(b["name"], 0.0) >= b["minimum"] for b in BUCKETS
+    )
+    # Count buckets that have received zero signal. Used to refuse a
+    # soft-cap wrap-up while whole topics (e.g., market_fit / founder_fit)
+    # have never been asked about.
+    untouched_buckets = sum(
+        1 for b in BUCKETS if bucket_scores.get(b["name"], 0.0) <= 0.0
     )
     stop = should_stop_interview(
         confidence,
@@ -243,6 +308,8 @@ def build_interview_context(
         next_topic.get("type", ""),
         False,
         all_buckets_met=all_buckets_met,
+        consecutive_empty_turns=consecutive_empty_turns,
+        untouched_buckets=untouched_buckets,
     )
     progress_summary = _build_progress_summary(confidence, turn_count, bucket_scores)
 

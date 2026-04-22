@@ -81,6 +81,7 @@ export const profileAPI = {
   getATSScore: (projectId) => api.get(`/profile/ats-score/${projectId}`),
   getSkillsSuggestions: (data) => api.post("/profile/skills-suggestions", data),
   founderChat: (data) => api.post("/profile/founder-chat", data),
+  finishInterview: () => api.post("/profile/finish-interview", {}),
   rewriteText: (data) => api.post("/profile/rewrite-text", data),
   textToSpeech: (text, voice = "alloy") =>
     api.post("/profile/text-to-speech", { text, voice }, { responseType: "blob" }),

@@ -282,7 +282,6 @@ const MatchList = ({ user }) => {
         <div style={{ display: "grid", gap: palette.spacing.xl }}>
           {matches.map((match, index) => {
             const isExpanded = expandedCards[match.user_id];
-            const subscores = match.explanation?.subscores || {};
             const visibleSkills = buildVisibleSkills(match.skills || []);
 
             return (
@@ -344,26 +343,6 @@ const MatchList = ({ user }) => {
                         <p style={{ fontSize: palette.typography.fontSize.sm, color: palette.colors.text.secondary, lineHeight: palette.typography.lineHeight.relaxed }}>
                           {match.reasoning}
                         </p>
-                      </div>
-                    )}
-
-                    {Object.keys(subscores).length > 0 && (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                          gap: palette.spacing.sm,
-                          marginBottom: palette.spacing.md,
-                        }}
-                      >
-                        {Object.entries(subscores).map(([key, value]) => (
-                          <div key={key} style={{ border: `1px solid ${palette.colors.border.primary}`, borderRadius: palette.borderRadius.md, padding: palette.spacing.sm }}>
-                            <p className="mono-label" style={{ marginBottom: 4 }}>
-                              {key.replace("_", " ")}
-                            </p>
-                            <p style={{ color: palette.colors.primary.cyan, fontFamily: palette.typography.fontFamily.mono }}>{value}%</p>
-                          </div>
-                        ))}
                       </div>
                     )}
 

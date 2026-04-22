@@ -226,11 +226,20 @@ const UserDashboard = ({ user }) => {
               <p style={{ color: palette.colors.text.secondary, lineHeight: palette.typography.lineHeight.relaxed }}>{user.bio}</p>
             </div>
           )}
-          {user.skills && user.skills.length > 0 && (
+          {(() => {
+            // skills may arrive as a string ("Python, Flask, Django") from
+            // chatbot extraction, or as an array from LinkedIn scrape. Coerce
+            // to an array here so `.map` is always safe.
+            const skillsArr = Array.isArray(user.skills)
+              ? user.skills
+              : (typeof user.skills === 'string'
+                  ? user.skills.split(',').map(s => s.trim()).filter(Boolean)
+                  : []);
+            return skillsArr.length > 0 && (
             <div>
-              <p className="mono-label" style={{ marginBottom: palette.spacing.sm }}>Skills ({user.skills.length})</p>
+              <p className="mono-label" style={{ marginBottom: palette.spacing.sm }}>Skills ({skillsArr.length})</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: palette.spacing.sm }}>
-                {user.skills.map((skill, index) => (
+                {skillsArr.map((skill, index) => (
                   <span key={index} style={{
                     border: `1px solid ${palette.colors.border.primary}`,
                     color: palette.colors.text.tertiary,
@@ -243,7 +252,8 @@ const UserDashboard = ({ user }) => {
                 ))}
               </div>
             </div>
-          )}
+            );
+          })()}
           {user.linkedin && (
             <div>
               <p className="mono-label" style={{ marginBottom: palette.spacing.xs }}>LinkedIn</p>

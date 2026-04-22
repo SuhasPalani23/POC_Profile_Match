@@ -24,6 +24,9 @@ const labelStyle = { display: 'block', fontSize: P.typography.fontSize.xs, lette
 const splitList = (v) => Array.isArray(v) ? v.map(String).map((x) => x.trim()).filter(Boolean) : (typeof v === 'string' ? v.split(',').map((x) => x.trim()).filter(Boolean) : []);
 const blank = (v) => v === null || v === undefined || v === false || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && v.length === 0);
 const normUrl = (v) => String(v || '').trim().replace(/\/+$/, '').toLowerCase();
+// Interview is done if the backend stamped `interviewComplete` OR legacy
+// users wrapped at >=80% confidence before the flag existed.
+const isInterviewComplete = (u) => Boolean(u?.interviewComplete) || Number(u?.profileConfidenceScore || 0) >= 80;
 const deriveNames = (u = {}) => {
   if (u.firstName || u.lastName) return { firstName: u.firstName || '', lastName: u.lastName || '' };
   const p = String(u.name || '').trim().split(/\s+/).filter(Boolean);
@@ -67,10 +70,10 @@ const LinkedInIcon = () => (
 );
 
 /* ─── Typeform-style Chatbot Overlay ─── */
-function TypeformChat({ messages, chatInput, setChatInput, onSend, loading, extraCount, onClose, completed }) {
+function TypeformChat({ messages, chatInput, setChatInput, onSend, loading, extraCount, onClose, completed, onFinish, finishing }) {
   const chatEndRef = useRef(null);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-  const inputDisabled = loading || completed;
+  const inputDisabled = loading || completed || finishing;
   return (
     <div style={{
       position: 'fixed', bottom: 0, right: 0, zIndex: 8888,
@@ -93,9 +96,45 @@ function TypeformChat({ messages, chatInput, setChatInput, onSend, loading, extr
               : (extraCount > 0 ? `${extraCount} insight${extraCount === 1 ? '' : 's'} collected` : 'Building your founder profile...')}
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: txt2, cursor: 'pointer', fontSize: 18, padding: 4 }} title={completed ? 'Close' : 'Minimize'}>&#x2715;</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!completed && onFinish && (
+            <button
+              onClick={onFinish}
+              disabled={finishing}
+              title="Wrap up the interview now and let the AI write your About Me"
+              style={{
+                background: 'transparent',
+                border: `1px solid ${gold}66`,
+                color: gold,
+                padding: '4px 10px',
+                borderRadius: 999,
+                fontSize: 11,
+                fontFamily: mono,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: finishing ? 'wait' : 'pointer',
+                opacity: finishing ? 0.6 : 1,
+              }}
+            >{finishing ? 'Finishing...' : 'End Interview'}</button>
+          )}
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: txt2, cursor: 'pointer', fontSize: 18, padding: 4 }} title={completed ? 'Close' : 'Minimize'}>&#x2715;</button>
+        </div>
       </div>
 
+      {completed && (
+        <div style={{
+          padding: '0.7rem 1rem',
+          background: `${gold}12`,
+          borderBottom: `1px solid ${gold}33`,
+          color: gold,
+          fontFamily: mono, fontSize: 11,
+          letterSpacing: '0.1em', textTransform: 'uppercase',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+          Interview locked — transcript is read-only
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {messages.map((m, i) => (
           <div key={`${m.role}-${i}`} style={{
@@ -120,8 +159,10 @@ function TypeformChat({ messages, chatInput, setChatInput, onSend, loading, extr
           type="text" value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !inputDisabled) { e.preventDefault(); onSend(); } }}
-          placeholder={completed ? 'Interview complete — thanks!' : 'Type your answer...'}
+          placeholder={completed ? 'Interview complete — input disabled' : 'Type your answer...'}
           disabled={inputDisabled}
+          title={completed ? 'The interview has ended. You can scroll through the transcript but cannot send new messages.' : undefined}
+          readOnly={completed}
           style={{
             ...inputStyle, flex: 1, minHeight: 46, borderRadius: '24px', paddingLeft: '1.1rem',
             opacity: inputDisabled ? 0.5 : 1,
@@ -253,11 +294,17 @@ export default function ProfileEdit({ user, onUpdate }) {
 
   // Typeform chatbot — chat thread is hydrated from the persisted user.chatHistory
   // so a hard refresh restores the exact thread, not a fresh greeting.
-  const [showChatbot, setShowChatbot] = useState(false);
-  const [chatMessages, setChatMessages] = useState(() => Array.isArray(user.chatHistory) ? user.chatHistory : []);
+  const initialHistory = Array.isArray(user.chatHistory) ? user.chatHistory : [];
+  const initialDone = isInterviewComplete(user);
+  // If the interview has already wrapped up, auto-open the chatbot so the
+  // user can see their full interview transcript. The input will be disabled
+  // (see `completed` in TypeformChat), so they can only review — not send.
+  const [showChatbot, setShowChatbot] = useState(() => initialDone && initialHistory.length > 0);
+  const [chatMessages, setChatMessages] = useState(() => initialHistory);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
-  const [conversationDone, setConversationDone] = useState(() => Number(user.profileConfidenceScore || 0) >= 80);
+  const [finishingInterview, setFinishingInterview] = useState(false);
+  const [conversationDone, setConversationDone] = useState(() => initialDone);
 
   // Dynamic fields — chatbot Q&A goes straight to Mongo (no per-turn UI panel),
   // so we only track scrape-discovered insights here for the "Discovered" panel.
@@ -269,11 +316,14 @@ export default function ProfileEdit({ user, onUpdate }) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Re-hydrate when the parent passes a fresh user object (e.g., after Save).
+  // Once conversationDone is locally true (this turn just wrapped), never
+  // unlock based on a refetch — the persisted `interviewComplete` flag is the
+  // only signal that can legitimately flip it back to false (it never will).
   useEffect(() => {
     if (Array.isArray(user.chatHistory)) setChatMessages(user.chatHistory);
     if (Array.isArray(user.linkedinFieldKeys)) setLinkedinFieldKeys(new Set(user.linkedinFieldKeys));
-    setConversationDone(Number(user.profileConfidenceScore || 0) >= 80);
-  }, [user.chatHistory, user.linkedinFieldKeys, user.profileConfidenceScore]);
+    setConversationDone(prev => prev || isInterviewComplete(user));
+  }, [user.chatHistory, user.linkedinFieldKeys, user.profileConfidenceScore, user.interviewComplete]);
 
   useEffect(() => {
     const handler = (e) => { if (hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; } };
@@ -461,10 +511,38 @@ export default function ProfileEdit({ user, onUpdate }) {
     } finally { setChatLoading(false); }
   }, [chatInput, conversationDone, onUpdate]);
 
+  // User-initiated wrap-up. Forces the backend to run the enrichment LLM
+  // call and fill About Me + Basic Info even if the bucket math thinks the
+  // interview isn't done. Also recovers accounts that got stuck before the
+  // confidence-engine fix shipped (About Me empty, chatbot disabled).
+  const handleFinishInterview = useCallback(async () => {
+    if (conversationDone || finishingInterview) return;
+    if (!window.confirm('Wrap up the interview now? The AI will use what you\'ve shared so far to write your About Me and Basic Info.')) return;
+    setFinishingInterview(true);
+    setError('');
+    try {
+      const res = await profileAPI.finishInterview();
+      const d = res.data || {};
+      const enriched = d.enrichedFields || {};
+      if (enriched.aboutMe) enriched.about = enriched.aboutMe;
+      else if (d.aboutMe) { enriched.aboutMe = d.aboutMe; enriched.about = d.aboutMe; }
+      if (Object.keys(enriched).length > 0) setFormData(prev => ({ ...prev, ...enriched }));
+      if (d.allExtraFields) setExtraFields(prev => ({ ...prev, ...d.allExtraFields }));
+      if (d.allFieldLabels) setDynamicFieldLabels(prev => ({ ...prev, ...d.allFieldLabels }));
+      setConversationDone(true);
+      setSuccess('Interview wrapped up. About Me is ready — scroll down to review.');
+      if (typeof onUpdate === 'function') onUpdate();
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.response?.data?.message || 'Could not finish the interview. Try again.');
+    } finally {
+      setFinishingInterview(false);
+    }
+  }, [conversationDone, finishingInterview, onUpdate]);
+
   return <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '1.5rem', fontFamily: mono, color: txt, background: bg0 }}>
 
     {/* Typeform Chatbot */}
-    {showChatbot && <TypeformChat messages={chatMessages} chatInput={chatInput} setChatInput={setChatInput} onSend={handleChatSend} loading={chatLoading} extraCount={extraFieldEntries.length} onClose={() => setShowChatbot(false)} completed={conversationDone} />}
+    {showChatbot && <TypeformChat messages={chatMessages} chatInput={chatInput} setChatInput={setChatInput} onSend={handleChatSend} loading={chatLoading} extraCount={extraFieldEntries.length} onClose={() => setShowChatbot(false)} completed={conversationDone} onFinish={handleFinishInterview} finishing={finishingInterview} />}
 
     {/* Header */}
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
@@ -613,7 +691,30 @@ export default function ProfileEdit({ user, onUpdate }) {
       <Button type="submit" disabled={loading} variant="primary" size="lg" fullWidth>{loading ? 'Saving...' : hasUnsavedChanges ? 'Save Profile (unsaved changes)' : 'Save Profile'}</Button>
     </form>
 
-    {/* Floating chat trigger — disabled once interview is complete. */}
+    {/* Reopen trigger for a completed interview — lets the user bring the
+        chatbot back up at any time to review the full transcript. Input
+        stays disabled because `conversationDone` is already true. */}
+    {!showChatbot && conversationDone && chatMessages.length > 0 && (
+      <button
+        onClick={() => setShowChatbot(true)}
+        title="View interview transcript"
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 7777,
+          padding: '12px 18px', borderRadius: 999,
+          background: bg0, border: `1px solid ${gold}66`, color: gold,
+          fontFamily: mono, fontSize: 12, letterSpacing: '0.08em',
+          textTransform: 'uppercase', cursor: 'pointer',
+          boxShadow: `0 4px 20px ${gold}33`,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        View Interview
+      </button>
+    )}
+
+    {/* Floating chat trigger — opens the live interview (only while not
+        yet complete). */}
     {!showChatbot && !conversationDone && (
       <button
         onClick={async () => {
