@@ -1985,7 +1985,7 @@ def founder_chat(current_user):
         if profile_ctx.get(key) and not current_user.get(key):
             persist_payload[key] = profile_ctx[key]
     # Persistent wrap-up flag: once the interview closes (via bucket coverage,
-    # farewell detection, SOFT/HARD_MAX_TURNS, or stuck-detector), stamp the
+    # farewell detection, HARD_MAX_TURNS, or stuck-detector), stamp the
     # user doc so the UI can lock the chat on every subsequent /auth/me refetch.
     # Without this, the frontend falls back to `confidence >= 80` and unlocks
     # the chat whenever the interview wrapped below that threshold.

@@ -25,13 +25,7 @@ from __future__ import annotations
 
 STOP_THRESHOLD = 0.80   # lowered from 0.85 so it aligns with bucket-minimum math
 MIN_TURNS = 6           # 3 user replies minimum
-SOFT_MAX_TURNS = 60     # normal ceiling (~30 user replies — enough room to cover
-                        # ALL five buckets even when the user gives short answers).
-                        # 40 was too tight: in the 2026-04-22 session the bot
-                        # looped inside topic_depth and hit the cap with market_fit
-                        # and founder_fit still at 0%, forcing a wrap with no
-                        # answers at all in those buckets.
-HARD_MAX_TURNS = 80     # absolute ceiling (bumped in lockstep)
+HARD_MAX_TURNS = 35     # absolute ceiling
 # If this many consecutive assistant turns extract zero fields while we're
 # already past STOP_THRESHOLD, we treat the interview as stuck and wrap up.
 # This is the exact failure from the 2026-04-21 demo: confidence plateaued at
@@ -235,7 +229,7 @@ def get_next_topic(profile_data, extra_fields, discovered_fields=None, chat_hist
 
 def _build_progress_summary(confidence, turn_count, bucket_scores):
     lines = [f"Profile confidence: {round(confidence * 100)}% (target: {round(STOP_THRESHOLD * 100)}%)"]
-    lines.append(f"Turn {turn_count} (min to finish: {MIN_TURNS}, soft cap: {SOFT_MAX_TURNS}).")
+    lines.append(f"Turn {turn_count} (min to finish: {MIN_TURNS}, hard cap: {HARD_MAX_TURNS}).")
     lines.append("Bucket coverage:")
     for bucket in BUCKETS:
         score = bucket_scores.get(bucket["name"], 0.0)
@@ -297,7 +291,7 @@ def build_interview_context(
         bucket_scores.get(b["name"], 0.0) >= b["minimum"] for b in BUCKETS
     )
     # Count buckets that have received zero signal. Used to refuse a
-    # soft-cap wrap-up while whole topics (e.g., market_fit / founder_fit)
+    # premature wrap-up while whole topics (e.g., market_fit / founder_fit)
     # have never been asked about.
     untouched_buckets = sum(
         1 for b in BUCKETS if bucket_scores.get(b["name"], 0.0) <= 0.0
